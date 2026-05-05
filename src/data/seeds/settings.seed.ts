@@ -18,3 +18,10 @@ export const scoringWeightsSeed = {
   concept_weight: 0.15,
   personal_weight: 0.1,
 };
+
+export const workflowScheduleSeed = {
+  ingestionWindow: "06:00–08:00",
+  scoringWindow: "08:00–08:15",
+  briefingWindow: "08:15–08:30",
+  dashboardAvailableAt: "08:30",
+};
