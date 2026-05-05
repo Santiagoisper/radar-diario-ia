@@ -1,0 +1,48 @@
+import type { PaperScore } from "../../domain/models";
+
+export const paperScoresSeed: PaperScore[] = [
+  {
+    id: "ps-1",
+    paper_id: "paper-1",
+    novelty_score: 8.7,
+    authority_score: 8.1,
+    relevance_score: 9.2,
+    concept_score: 8.8,
+    personal_score: 9.0,
+    total_score: 8.74,
+    explanation: "Strong agentic execution signal with high practical relevance.",
+  },
+  {
+    id: "ps-2",
+    paper_id: "paper-2",
+    novelty_score: 8.4,
+    authority_score: 7.8,
+    relevance_score: 8.9,
+    concept_score: 9.1,
+    personal_score: 8.3,
+    total_score: 8.52,
+    explanation: "Memory evolution line aligns with long-term product strategy.",
+  },
+  {
+    id: "ps-3",
+    paper_id: "paper-3",
+    novelty_score: 7.9,
+    authority_score: 8.5,
+    relevance_score: 8.6,
+    concept_score: 8.1,
+    personal_score: 8.7,
+    total_score: 8.31,
+    explanation: "Critical governance/oversight benchmark contribution.",
+  },
+  {
+    id: "ps-4",
+    paper_id: "paper-4",
+    novelty_score: 7.7,
+    authority_score: 8.2,
+    relevance_score: 7.9,
+    concept_score: 8.2,
+    personal_score: 7.8,
+    total_score: 7.94,
+    explanation: "Efficiency trend with moderate strategic impact.",
+  },
+];
