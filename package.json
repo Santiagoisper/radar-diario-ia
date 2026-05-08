@@ -3,6 +3,9 @@
   "description": "Radar intelectual diario de papers de IA — UI React y motor de dominio con datos mock listos para adapters reales.",
   "private": true,
   "version": "0.0.0",
+  "engines": {
+    "node": ">=20"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

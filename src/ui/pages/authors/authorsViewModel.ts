@@ -1,9 +1,5 @@
-import {
-  authorWatchSeed,
-  papersSeed,
-  paperScoresSeed,
-  paperThemesSeed,
-} from "../../../data/seeds";
+import { DEFAULT_RADAR_DATE, getRadarAppData } from "../../../data/radarSnapshot";
+import { authorWatchSeed } from "../../../data/seeds";
 
 interface AuthorLinkedPaper {
   id: string;
@@ -41,24 +37,30 @@ function matchAuthor(paperAuthor: string, displayName: string, aliases: string[]
   return paperAuthor === displayName || aliases.includes(paperAuthor);
 }
 
-function getPaperMainTheme(paperId: string): string {
+function getPaperMainTheme(paperId: string, themes: { paper_id: string; theme: string; confidence: number }[]): string {
   return (
-    paperThemesSeed
+    themes
       .filter((theme) => theme.paper_id === paperId)
       .sort((a, b) => b.confidence - a.confidence)[0]?.theme ?? "sin clasificar"
   );
 }
 
-function getPaperScore(paperId: string): number {
-  return paperScoresSeed.find((score) => score.paper_id === paperId)?.total_score ?? 0;
+function getPaperScore(paperId: string, scores: { paper_id: string; total_score: number }[]): number {
+  return scores.find((score) => score.paper_id === paperId)?.total_score ?? 0;
 }
 
 function formatDateISO(dateIso: string): string {
   return dateIso.slice(0, 10);
 }
 
-function getAuthorPapers(displayName: string, aliases: string[]): AuthorLinkedPaper[] {
-  return papersSeed
+function getAuthorPapers(
+  displayName: string,
+  aliases: string[],
+  papers: { id: string; title: string; published_at: string; authors: string[] }[],
+  themes: { paper_id: string; theme: string; confidence: number }[],
+  scores: { paper_id: string; total_score: number }[],
+): AuthorLinkedPaper[] {
+  return papers
     .filter((paper) =>
       paper.authors.some((author) => matchAuthor(author, displayName, aliases)),
     )
@@ -66,8 +68,8 @@ function getAuthorPapers(displayName: string, aliases: string[]): AuthorLinkedPa
       id: paper.id,
       title: paper.title,
       date: paper.published_at,
-      mainTheme: getPaperMainTheme(paper.id),
-      totalScore: getPaperScore(paper.id),
+      mainTheme: getPaperMainTheme(paper.id, themes),
+      totalScore: getPaperScore(paper.id, scores),
       detailPath: `/papers?paperId=${paper.id}`,
     }))
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -106,11 +108,13 @@ function detectFocusSignal(papers: AuthorLinkedPaper[], topThemes: AuthorTopicCo
 }
 
 export function buildAuthorsListView(): AuthorListItem[] {
+  const { papers, themes, scores } = getRadarAppData().workflow;
+
   return authorWatchSeed
     .map((author) => {
-      const papers = getAuthorPapers(author.display_name, author.aliases);
-      const lastAppearance = papers[0]?.date ?? null;
-      const topThemes = getTopThemes(papers);
+      const authorPapers = getAuthorPapers(author.display_name, author.aliases, papers, themes, scores);
+      const lastAppearance = authorPapers[0]?.date ?? null;
+      const topThemes = getTopThemes(authorPapers);
 
       return {
         id: author.id,
@@ -120,7 +124,7 @@ export function buildAuthorsListView(): AuthorListItem[] {
         active: author.active,
         notes: author.notes,
         lastAppearance,
-        linkedPapersCount: papers.length,
+        linkedPapersCount: authorPapers.length,
         topThemes,
       };
     })
@@ -131,9 +135,10 @@ export function buildAuthorDetail(authorId: string): AuthorDetail | null {
   const author = authorWatchSeed.find((item) => item.id === authorId);
   if (!author) return null;
 
-  const papers = getAuthorPapers(author.display_name, author.aliases);
-  const topThemes = getTopThemes(papers);
-  const focusSignal = detectFocusSignal(papers, topThemes);
+  const { papers, themes, scores } = getRadarAppData().workflow;
+  const authorPapers = getAuthorPapers(author.display_name, author.aliases, papers, themes, scores);
+  const topThemes = getTopThemes(authorPapers);
+  const focusSignal = detectFocusSignal(authorPapers, topThemes);
 
   return {
     id: author.id,
@@ -142,18 +147,18 @@ export function buildAuthorDetail(authorId: string): AuthorDetail | null {
     priority: author.priority,
     active: author.active,
     notes: author.notes,
-    lastAppearance: papers[0]?.date ?? null,
-    linkedPapersCount: papers.length,
+    lastAppearance: authorPapers[0]?.date ?? null,
+    linkedPapersCount: authorPapers.length,
     topThemes,
-    papers,
+    papers: authorPapers,
     focusSignal,
     currentMainTheme: topThemes[0]?.theme ?? "sin señal",
   };
 }
 
-export function getAuthorsActivityToday() {
+export function getAuthorsActivityToday(radarDate: string = DEFAULT_RADAR_DATE) {
   const todayAuthors = buildAuthorsListView().filter((author) =>
-    author.lastAppearance ? formatDateISO(author.lastAppearance) === "2026-05-05" : false,
+    author.lastAppearance ? formatDateISO(author.lastAppearance) === radarDate : false,
   );
 
   return {

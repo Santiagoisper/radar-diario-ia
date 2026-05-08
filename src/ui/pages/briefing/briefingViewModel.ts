@@ -1,10 +1,5 @@
-import {
-  dailyBriefingsSeed,
-  dailyBriefingItemsSeed,
-  paperScoresSeed,
-  papersSeed,
-  paperThemesSeed,
-} from "../../../data/seeds";
+import { getRadarAppData } from "../../../data/radarSnapshot";
+import type { DailyBriefing } from "../../../domain/models";
 
 interface BriefingThemeItem {
   theme: string;
@@ -34,10 +29,8 @@ export interface BriefingTodayViewModel {
   markdown: string;
 }
 
-function getLatestBriefing() {
-  return [...dailyBriefingsSeed].sort((a, b) =>
-    b.briefing_date.localeCompare(a.briefing_date),
-  )[0];
+function getLatestBriefing(briefings: DailyBriefing[]): DailyBriefing | undefined {
+  return [...briefings].sort((a, b) => b.briefing_date.localeCompare(a.briefing_date))[0];
 }
 
 function scoreToSignal(score: number): "alta" | "media" | "baja" {
@@ -46,16 +39,22 @@ function scoreToSignal(score: number): "alta" | "media" | "baja" {
   return "baja";
 }
 
-function buildHighlightedPapers(briefingId: string): BriefingHighlightedPaper[] {
-  const rankedItems = dailyBriefingItemsSeed
+function buildHighlightedPapers(
+  briefingId: string,
+  briefingItems: { briefing_id: string; paper_id: string; rank: number; inclusion_reason: string }[],
+  papers: { id: string; title: string; authors: string[] }[],
+  scores: { paper_id: string; total_score: number }[],
+  themes: { paper_id: string; theme: string; confidence: number }[],
+): BriefingHighlightedPaper[] {
+  const rankedItems = briefingItems
     .filter((item) => item.briefing_id === briefingId)
     .sort((a, b) => a.rank - b.rank);
 
   const fromBriefing = rankedItems
     .map((item) => {
-      const paper = papersSeed.find((p) => p.id === item.paper_id);
-      const score = paperScoresSeed.find((s) => s.paper_id === item.paper_id);
-      const topTheme = paperThemesSeed
+      const paper = papers.find((p) => p.id === item.paper_id);
+      const score = scores.find((s) => s.paper_id === item.paper_id);
+      const topTheme = themes
         .filter((theme) => theme.paper_id === item.paper_id)
         .sort((a, b) => b.confidence - a.confidence)[0]?.theme;
 
@@ -72,16 +71,19 @@ function buildHighlightedPapers(briefingId: string): BriefingHighlightedPaper[] 
     })
     .filter((item): item is BriefingHighlightedPaper => Boolean(item));
 
-  if (fromBriefing.length > 0) {
-    // Even if curation exists, keep score as primary ordering signal.
-    return fromBriefing.sort((a, b) => b.totalScore - a.totalScore);
-  }
+  return fromBriefing.sort((a, b) => b.totalScore - a.totalScore);
+}
 
-  return [...papersSeed]
+function buildHighlightedPapersFallback(
+  papers: { id: string; title: string; authors: string[]; is_new_today: boolean }[],
+  scores: { paper_id: string; total_score: number; explanation: string }[],
+  themes: { paper_id: string; theme: string; confidence: number }[],
+): BriefingHighlightedPaper[] {
+  return papers
     .filter((paper) => paper.is_new_today)
     .map((paper) => {
-      const score = paperScoresSeed.find((s) => s.paper_id === paper.id);
-      const topTheme = paperThemesSeed
+      const score = scores.find((s) => s.paper_id === paper.id);
+      const topTheme = themes
         .filter((theme) => theme.paper_id === paper.id)
         .sort((a, b) => b.confidence - a.confidence)[0]?.theme;
 
@@ -97,6 +99,11 @@ function buildHighlightedPapers(briefingId: string): BriefingHighlightedPaper[] 
     .sort((a, b) => b.totalScore - a.totalScore)
     .slice(0, 5);
 }
+
+type BriefingHighlightedPapersInput = Array<{
+  theme: string;
+  totalScore: number;
+}>;
 
 function buildRelevantThemes(papers: BriefingHighlightedPapersInput): BriefingThemeItem[] {
   const grouped = new Map<string, { count: number; scoreSum: number }>();
@@ -147,11 +154,6 @@ function ensureThemeCoverage(
   return merged.slice(0, 7);
 }
 
-type BriefingHighlightedPapersInput = Array<{
-  theme: string;
-  totalScore: number;
-}>;
-
 function buildMarkdown(view: Omit<BriefingTodayViewModel, "markdown">): string {
   const themesSection = view.relevantThemes
     .map(
@@ -178,7 +180,9 @@ function buildMarkdown(view: Omit<BriefingTodayViewModel, "markdown">): string {
 }
 
 export function buildBriefingTodayViewModel(): BriefingTodayViewModel {
-  const latestBriefing = getLatestBriefing();
+  const { workflow, briefings, briefingItems } = getRadarAppData();
+  const { papers, themes, scores } = workflow;
+  const latestBriefing = getLatestBriefing(briefings);
 
   if (!latestBriefing) {
     const fallback: Omit<BriefingTodayViewModel, "markdown"> = {
@@ -195,12 +199,19 @@ export function buildBriefingTodayViewModel(): BriefingTodayViewModel {
     return { ...fallback, markdown: buildMarkdown(fallback) };
   }
 
-  const highlightedPapers = buildHighlightedPapers(latestBriefing.id);
-  const computedThemes = buildRelevantThemes(highlightedPapers);
-  const relevantThemes = ensureThemeCoverage(
-    computedThemes,
-    latestBriefing.relevant_topics,
+  let highlightedPapers = buildHighlightedPapers(
+    latestBriefing.id,
+    briefingItems,
+    papers,
+    scores,
+    themes,
   );
+  if (highlightedPapers.length === 0) {
+    highlightedPapers = buildHighlightedPapersFallback(papers, scores, themes);
+  }
+
+  const computedThemes = buildRelevantThemes(highlightedPapers);
+  const relevantThemes = ensureThemeCoverage(computedThemes, latestBriefing.relevant_topics);
 
   const view: Omit<BriefingTodayViewModel, "markdown"> = {
     title: latestBriefing.title,

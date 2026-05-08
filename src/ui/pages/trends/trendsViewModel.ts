@@ -1,9 +1,6 @@
-import {
-  papersSeed,
-  paperThemesSeed,
-  paperScoresSeed,
-  trendSnapshotsSeed,
-} from "../../../data/seeds";
+import { getRadarAppData } from "../../../data/radarSnapshot";
+import type { Paper, PaperScore, PaperTheme } from "../../../domain/models";
+import type { RadarWorkflowResult } from "../../../domain/services/radar/types";
 
 export type TrendsPeriod = "7d" | "30d" | "all";
 
@@ -73,20 +70,20 @@ export interface TrendsViewModel {
   evolutionBars: BarDatum[];
 }
 
-function getMainTheme(paperId: string): string {
+function getMainTheme(paperId: string, themeRows: PaperTheme[]): string {
   return (
-    paperThemesSeed
+    themeRows
       .filter((theme) => theme.paper_id === paperId)
       .sort((a, b) => b.confidence - a.confidence)[0]?.theme ?? "sin clasificar"
   );
 }
 
-function getScore(paperId: string): number {
-  return paperScoresSeed.find((score) => score.paper_id === paperId)?.total_score ?? 0;
+function getScore(paperId: string, scores: PaperScore[]): number {
+  return scores.find((score) => score.paper_id === paperId)?.total_score ?? 0;
 }
 
-function getReferenceDate(): Date {
-  const maxDate = papersSeed
+function getReferenceDate(papers: Paper[]): Date {
+  const maxDate = papers
     .map((paper) => new Date(paper.published_at).getTime())
     .sort((a, b) => b - a)[0];
 
@@ -119,21 +116,21 @@ function isWithin(dateIso: string, start: Date, end: Date): boolean {
   return date >= start && date <= end;
 }
 
-function buildPaperRows(): BasePaperRow[] {
-  return papersSeed.map((paper) => ({
+function buildPaperRows(workflow: RadarWorkflowResult): BasePaperRow[] {
+  const { papers, themes, scores } = workflow;
+  return papers.map((paper) => ({
     id: paper.id,
     title: paper.title,
     date: paper.published_at,
     authors: paper.authors,
     categories: paper.categories,
-    theme: getMainTheme(paper.id),
-    score: getScore(paper.id),
+    theme: getMainTheme(paper.id, themes),
+    score: getScore(paper.id, scores),
   }));
 }
 
-function applyFilters(rows: BasePaperRow[], filters: TrendsFilters): BasePaperRow[] {
-  const end = getReferenceDate();
-  const { start, end: effectiveEnd } = getPeriodWindow(filters.period, end);
+function applyFilters(rows: BasePaperRow[], filters: TrendsFilters, referenceEnd: Date): BasePaperRow[] {
+  const { start, end: effectiveEnd } = getPeriodWindow(filters.period, referenceEnd);
 
   return rows.filter((row) => {
     if (!isWithin(row.date, start, effectiveEnd)) return false;
@@ -222,9 +219,9 @@ function buildRecurrentAuthors(rows: BasePaperRow[]): RecurrentAuthorItem[] {
   });
 
   return [...byAuthor.entries()]
-    .map(([author, papers]) => {
+    .map(([author, authorRows]) => {
       const themeCount = new Map<string, number>();
-      papers.forEach((paper) => {
+      authorRows.forEach((paper) => {
         themeCount.set(paper.theme, (themeCount.get(paper.theme) ?? 0) + 1);
       });
 
@@ -233,14 +230,14 @@ function buildRecurrentAuthors(rows: BasePaperRow[]): RecurrentAuthorItem[] {
         .map(([theme]) => theme)
         .slice(0, 3);
 
-      const highlightedPapers = [...papers]
+      const highlightedPapers = [...authorRows]
         .sort((a, b) => b.score - a.score)
         .map((paper) => paper.title)
         .slice(0, 3);
 
       return {
         author,
-        appearances: papers.length,
+        appearances: authorRows.length,
         associatedThemes,
         highlightedPapers,
       } satisfies RecurrentAuthorItem;
@@ -261,39 +258,38 @@ function buildConceptLines(rows: BasePaperRow[]): ConceptLineItem[] {
   return [...byTheme.entries()]
     .sort((a, b) => b[1].length - a[1].length)
     .slice(0, 5)
-    .map(([theme, papers]) => {
-      const authors = Array.from(new Set(papers.flatMap((paper) => paper.authors))).slice(0, 5);
-      const paperTitles = papers
+    .map(([theme, themeRows]) => {
+      const authors = Array.from(new Set(themeRows.flatMap((paper) => paper.authors))).slice(0, 5);
+      const paperTitles = themeRows
         .sort((a, b) => b.score - a.score)
         .map((paper) => paper.title)
         .slice(0, 4);
 
       return {
         theme,
-        frequency: papers.length,
+        frequency: themeRows.length,
         papers: paperTitles,
         authors,
         interpretation:
-          `La línea ${theme} muestra ${papers.length} apariciones en el período, consolidándose como señal de diseño y ejecución.`,
+          `La línea ${theme} muestra ${themeRows.length} apariciones en el período, consolidándose como señal de diseño y ejecución.`,
       } satisfies ConceptLineItem;
     });
 }
 
-function buildConceptualReading(dominantTheme: string, fastestGrowingTheme: string): string {
-  const seedTrend = [...trendSnapshotsSeed]
-    .sort((a, b) => b.period_end.localeCompare(a.period_end))[0]?.trend_summary;
-
-  if (seedTrend) {
-    return `${seedTrend} En este recorte, ${dominantTheme} domina y ${fastestGrowingTheme} marca aceleración relativa.`;
+function buildConceptualReading(
+  dominantTheme: string,
+  fastestGrowingTheme: string,
+  trendSummary: string,
+): string {
+  const trimmed = trendSummary.trim();
+  if (trimmed) {
+    return `${trimmed} En este recorte, ${dominantTheme} domina y ${fastestGrowingTheme} marca aceleración relativa.`;
   }
 
   return `El período muestra dominancia de ${dominantTheme} y aceleración en ${fastestGrowingTheme}, señalando una fase de convergencia aplicada.`;
 }
 
-function getEvolutionBars(filters: TrendsFilters): BarDatum[] {
-  const rows = buildPaperRows();
-  const ref = getReferenceDate();
-
+function getEvolutionBars(filters: TrendsFilters, rows: BasePaperRow[], ref: Date): BarDatum[] {
   if (filters.period === "all") {
     const weekly = rows.filter((row) => isWithin(row.date, new Date(ref.getTime() - 6 * 86400000), ref)).length;
     const monthly = rows.filter((row) => isWithin(row.date, new Date(ref.getTime() - 29 * 86400000), ref)).length;
@@ -317,7 +313,7 @@ function getEvolutionBars(filters: TrendsFilters): BarDatum[] {
 }
 
 export function buildTrendsFilterOptions() {
-  const rows = buildPaperRows();
+  const rows = buildPaperRows(getRadarAppData().workflow);
 
   return {
     themes: Array.from(new Set(rows.map((row) => row.theme))).sort(),
@@ -327,10 +323,11 @@ export function buildTrendsFilterOptions() {
 }
 
 export function buildTrendsViewModel(filters: TrendsFilters): TrendsViewModel {
-  const allRows = buildPaperRows();
-  const filteredRows = applyFilters(allRows, filters);
+  const workflow = getRadarAppData().workflow;
+  const allRows = buildPaperRows(workflow);
+  const referenceDate = getReferenceDate(workflow.papers);
+  const filteredRows = applyFilters(allRows, filters, referenceDate);
 
-  const referenceDate = getReferenceDate();
   const { start, end } = getPeriodWindow(filters.period, referenceDate);
   const prevWindow = getPreviousWindow(filters.period, start, end);
 
@@ -370,7 +367,11 @@ export function buildTrendsViewModel(filters: TrendsFilters): TrendsViewModel {
       fastestGrowingTheme,
       mostRecurrentAuthor,
       totalPapers: filteredRows.length,
-      conceptualReading: buildConceptualReading(dominantTheme, fastestGrowingTheme),
+      conceptualReading: buildConceptualReading(
+        dominantTheme,
+        fastestGrowingTheme,
+        workflow.trendSnapshot.trend_summary,
+      ),
     },
     growthThemes,
     recurrentAuthors,
@@ -378,6 +379,6 @@ export function buildTrendsViewModel(filters: TrendsFilters): TrendsViewModel {
     themeBars,
     authorBars,
     categoryBars,
-    evolutionBars: getEvolutionBars(filters),
+    evolutionBars: getEvolutionBars(filters, allRows, referenceDate),
   };
 }

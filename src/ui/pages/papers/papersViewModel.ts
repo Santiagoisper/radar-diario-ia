@@ -1,8 +1,4 @@
-import {
-  paperScoresSeed,
-  papersSeed,
-  paperThemesSeed,
-} from "../../../data/seeds";
+import { DEFAULT_RADAR_DATE, getRadarAppData } from "../../../data/radarSnapshot";
 import type { PaperScore, PaperTheme } from "../../../domain/models";
 
 export type PapersSort = "score_desc" | "date_desc" | "title_asc" | "author_asc";
@@ -49,21 +45,23 @@ const emptyScore: PaperScore = {
   explanation: "Sin explicación de score.",
 };
 
-function getMainTheme(paperId: string): string {
+function getMainTheme(paperId: string, themeRows: PaperTheme[]): string {
   return (
-    paperThemesSeed
+    themeRows
       .filter((theme) => theme.paper_id === paperId)
       .sort((a, b) => b.confidence - a.confidence)[0]?.theme ?? "sin clasificar"
   );
 }
 
-function getScore(paperId: string): PaperScore {
-  return paperScoresSeed.find((score) => score.paper_id === paperId) ?? { ...emptyScore, paper_id: paperId };
+function getScore(paperId: string, scores: PaperScore[]): PaperScore {
+  return scores.find((score) => score.paper_id === paperId) ?? { ...emptyScore, paper_id: paperId };
 }
 
 export function buildPaperList(): PaperListItem[] {
-  return papersSeed.map((paper) => {
-    const score = getScore(paper.id);
+  const { papers, themes, scores } = getRadarAppData().workflow;
+
+  return papers.map((paper) => {
+    const score = getScore(paper.id, scores);
 
     return {
       id: paper.id,
@@ -71,7 +69,7 @@ export function buildPaperList(): PaperListItem[] {
       authors: paper.authors,
       publishedAt: paper.published_at,
       categories: paper.categories,
-      mainTheme: getMainTheme(paper.id),
+      mainTheme: getMainTheme(paper.id, themes),
       totalScore: score.total_score,
       isNewToday: paper.is_new_today,
     };
@@ -79,15 +77,20 @@ export function buildPaperList(): PaperListItem[] {
 }
 
 export function buildFilterOptions() {
-  const authors = Array.from(new Set(papersSeed.flatMap((paper) => paper.authors))).sort();
-  const themes = Array.from(new Set(paperThemesSeed.map((theme) => theme.theme))).sort();
-  const categories = Array.from(new Set(papersSeed.flatMap((paper) => paper.categories))).sort();
+  const { papers, themes } = getRadarAppData().workflow;
+  const authors = Array.from(new Set(papers.flatMap((paper) => paper.authors))).sort();
+  const themeLabels = Array.from(new Set(themes.map((theme) => theme.theme))).sort();
+  const categories = Array.from(new Set(papers.flatMap((paper) => paper.categories))).sort();
 
-  return { authors, themes, categories };
+  return { authors, themes: themeLabels, categories };
 }
 
-export function applyPapersFilters(items: PaperListItem[], filters: PapersFilters): PaperListItem[] {
-  const now = new Date("2026-05-05T23:59:59Z");
+export function applyPapersFilters(
+  items: PaperListItem[],
+  filters: PapersFilters,
+  referenceDate: string = DEFAULT_RADAR_DATE,
+): PaperListItem[] {
+  const now = new Date(`${referenceDate}T23:59:59Z`);
   const last7Start = new Date(now);
   last7Start.setUTCDate(now.getUTCDate() - 6);
 
@@ -118,11 +121,12 @@ export function applyPapersFilters(items: PaperListItem[], filters: PapersFilter
 }
 
 export function getPaperDetail(paperId: string): PaperDetail | null {
-  const paper = papersSeed.find((item) => item.id === paperId);
+  const { papers, themes, scores } = getRadarAppData().workflow;
+  const paper = papers.find((item) => item.id === paperId);
   if (!paper) return null;
 
-  const score = getScore(paperId);
-  const themes = paperThemesSeed
+  const score = getScore(paperId, scores);
+  const paperThemes = themes
     .filter((theme) => theme.paper_id === paperId)
     .sort((a, b) => b.confidence - a.confidence);
 
@@ -133,11 +137,11 @@ export function getPaperDetail(paperId: string): PaperDetail | null {
     publishedAt: paper.published_at,
     updatedAt: paper.updated_at,
     categories: paper.categories,
-    mainTheme: themes[0]?.theme ?? "sin clasificar",
+    mainTheme: paperThemes[0]?.theme ?? "sin clasificar",
     totalScore: score.total_score,
     isNewToday: paper.is_new_today,
     abstract: paper.abstract,
-    themes,
+    themes: paperThemes,
     score,
     scoreExplanation: score.explanation,
     url: paper.url,

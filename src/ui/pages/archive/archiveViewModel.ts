@@ -1,10 +1,6 @@
-import {
-  dailyBriefingsSeed,
-  dailyBriefingItemsSeed,
-  papersSeed,
-  paperScoresSeed,
-  paperThemesSeed,
-} from "../../../data/seeds";
+import { DEFAULT_RADAR_DATE, getRadarAppData, resolvePaper } from "../../../data/radarSnapshot";
+import type { DailyBriefing, DailyBriefingItem } from "../../../domain/models";
+import type { RadarWorkflowResult } from "../../../domain/services/radar/types";
 
 export type ArchiveRange = "7d" | "30d" | "all";
 
@@ -55,23 +51,26 @@ interface BriefingPaperRef {
   rank: number;
 }
 
-function getBriefingPaperRefs(briefingId: string): BriefingPaperRef[] {
-  return dailyBriefingItemsSeed
+function getBriefingPaperRefs(briefingId: string, briefingItems: DailyBriefingItem[]): BriefingPaperRef[] {
+  return briefingItems
     .filter((item) => item.briefing_id === briefingId)
     .sort((a, b) => a.rank - b.rank)
     .map((item) => ({ paperId: item.paper_id, reason: item.inclusion_reason, rank: item.rank }));
 }
 
-function getPaperTheme(paperId: string): string {
+function getPaperTheme(
+  paperId: string,
+  themes: { paper_id: string; theme: string; confidence: number }[],
+): string {
   return (
-    paperThemesSeed
+    themes
       .filter((item) => item.paper_id === paperId)
       .sort((a, b) => b.confidence - a.confidence)[0]?.theme ?? "sin clasificar"
   );
 }
 
-function getPaperScore(paperId: string): number {
-  return paperScoresSeed.find((item) => item.paper_id === paperId)?.total_score ?? 0;
+function getPaperScore(paperId: string, scores: { paper_id: string; total_score: number }[]): number {
+  return scores.find((item) => item.paper_id === paperId)?.total_score ?? 0;
 }
 
 function summarizeText(text: string, maxLen = 140): string {
@@ -83,10 +82,10 @@ function normalizeDate(dateIsoOrDate: string): string {
   return dateIsoOrDate.slice(0, 10);
 }
 
-function isDateInRange(date: string, range: ArchiveRange): boolean {
+function isDateInRange(date: string, range: ArchiveRange, radarDate: string): boolean {
   if (range === "all") return true;
 
-  const end = new Date("2026-05-05T23:59:59Z");
+  const end = new Date(`${radarDate}T23:59:59Z`);
   const start = new Date(end);
   start.setUTCDate(end.getUTCDate() - (range === "7d" ? 6 : 29));
 
@@ -94,18 +93,20 @@ function isDateInRange(date: string, range: ArchiveRange): boolean {
   return value >= start && value <= end;
 }
 
-function buildListItem(briefingId: string): ArchiveListItem | null {
-  const briefing = dailyBriefingsSeed.find((item) => item.id === briefingId);
-  if (!briefing) return null;
-
-  const refs = getBriefingPaperRefs(briefingId);
-  const papers = refs
-    .map((ref) => papersSeed.find((paper) => paper.id === ref.paperId))
+function buildListItem(
+  briefing: DailyBriefing,
+  briefingItems: DailyBriefingItem[],
+  themes: { paper_id: string; theme: string; confidence: number }[],
+  workflow: RadarWorkflowResult,
+): ArchiveListItem {
+  const refs = getBriefingPaperRefs(briefing.id, briefingItems);
+  const paperRows = refs
+    .map((ref) => resolvePaper(ref.paperId, workflow))
     .filter((paper): paper is NonNullable<typeof paper> => Boolean(paper));
 
   const themeCount = new Map<string, number>();
-  papers.forEach((paper) => {
-    const theme = getPaperTheme(paper.id);
+  paperRows.forEach((paper) => {
+    const theme = getPaperTheme(paper.id, themes);
     themeCount.set(theme, (themeCount.get(theme) ?? 0) + 1);
   });
 
@@ -115,7 +116,7 @@ function buildListItem(briefingId: string): ArchiveListItem | null {
     .slice(0, 3);
 
   const dominantSignal = topThemes[0] ?? briefing.relevant_topics[0] ?? "sin señal";
-  const authorsMentioned = Array.from(new Set(papers.flatMap((paper) => paper.authors))).slice(0, 6);
+  const authorsMentioned = Array.from(new Set(paperRows.flatMap((paper) => paper.authors))).slice(0, 6);
 
   return {
     id: briefing.id,
@@ -130,14 +131,16 @@ function buildListItem(briefingId: string): ArchiveListItem | null {
 }
 
 export function buildArchiveFilterOptions() {
+  const { briefings, briefingItems, workflow } = getRadarAppData();
+
   const themes = Array.from(
-    new Set(dailyBriefingsSeed.flatMap((briefing) => briefing.relevant_topics)),
+    new Set(briefings.flatMap((briefing) => briefing.relevant_topics)),
   ).sort();
 
   const authorPool = new Set<string>();
-  dailyBriefingsSeed.forEach((briefing) => {
-    getBriefingPaperRefs(briefing.id).forEach((ref) => {
-      const paper = papersSeed.find((item) => item.id === ref.paperId);
+  briefings.forEach((briefing) => {
+    getBriefingPaperRefs(briefing.id, briefingItems).forEach((ref) => {
+      const paper = resolvePaper(ref.paperId, workflow);
       paper?.authors.forEach((author) => authorPool.add(author));
     });
   });
@@ -148,12 +151,14 @@ export function buildArchiveFilterOptions() {
   };
 }
 
-export function buildArchiveList(filters: ArchiveFilters): ArchiveListItem[] {
-  return dailyBriefingsSeed
-    .map((briefing) => buildListItem(briefing.id))
-    .filter((item): item is NonNullable<typeof item> => Boolean(item))
+export function buildArchiveList(filters: ArchiveFilters, radarDate: string = DEFAULT_RADAR_DATE): ArchiveListItem[] {
+  const { briefings, briefingItems, workflow } = getRadarAppData();
+  const { themes } = workflow;
+
+  return briefings
+    .map((briefing) => buildListItem(briefing, briefingItems, themes, workflow))
     .filter((item) => {
-      if (!isDateInRange(item.date, filters.range)) return false;
+      if (!isDateInRange(item.date, filters.range, radarDate)) return false;
       if (filters.dateQuery && !item.date.includes(filters.dateQuery)) return false;
       if (filters.theme !== "all" && !item.topThemes.includes(filters.theme)) return false;
       if (filters.author !== "all" && !item.authorsMentioned.includes(filters.author)) return false;
@@ -163,12 +168,15 @@ export function buildArchiveList(filters: ArchiveFilters): ArchiveListItem[] {
 }
 
 export function buildArchiveDetail(briefingId: string): ArchiveBriefingDetail | null {
-  const briefing = dailyBriefingsSeed.find((item) => item.id === briefingId);
+  const { briefings, briefingItems, workflow } = getRadarAppData();
+  const { themes, scores } = workflow;
+
+  const briefing = briefings.find((item) => item.id === briefingId);
   if (!briefing) return null;
 
-  const highlightedPapers = getBriefingPaperRefs(briefingId)
+  const highlightedPapers = getBriefingPaperRefs(briefingId, briefingItems)
     .map((ref) => {
-      const paper = papersSeed.find((item) => item.id === ref.paperId);
+      const paper = resolvePaper(ref.paperId, workflow);
       if (!paper) return null;
 
       return {
@@ -176,8 +184,8 @@ export function buildArchiveDetail(briefingId: string): ArchiveBriefingDetail | 
         title: paper.title,
         authors: paper.authors,
         date: normalizeDate(paper.published_at),
-        theme: getPaperTheme(paper.id),
-        totalScore: getPaperScore(paper.id),
+        theme: getPaperTheme(paper.id, themes),
+        totalScore: getPaperScore(paper.id, scores),
         whyItMatters: ref.reason,
       } satisfies ArchiveHighlightedPaper;
     })

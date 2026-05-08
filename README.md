@@ -9,7 +9,9 @@ Aplicación web para un **radar intelectual diario** de papers de IA: home con m
 
 ## Estado del proyecto
 
-Los datos mostrados en la UI provienen de **semillas mock** (`src/data/seeds`). El **motor de dominio** en `src/domain/services/radar` implementa el pipeline completo (ingesta stub, normalización, deduplicación, temas, scoring, briefing y snapshot de tendencias) y está **preparado para conectar adapters reales** (p. ej. arXiv, LLM) sin rehacer la arquitectura.
+Los datos mostrados en la UI provienen de **semillas mock** (`src/data/seeds`), pero las pantallas (home, briefing, papers, autores, archivo, tendencias) se alimentan a través de **`getRadarAppData()`** en [`src/data/radarSnapshot.ts`](src/data/radarSnapshot.ts), que ejecuta **`runDailyRadarWorkflow`**: misma fuente de verdad que el pipeline (ingesta stub, normalización, deduplicación, temas, scoring, briefing y snapshot de tendencias). Así, cambios en el dominio se reflejan en la interfaz. La **configuración** en Settings sigue leyendo seeds hasta haber persistencia o API.
+
+El motor está **preparado para conectar adapters reales** (p. ej. arXiv, LLM) sin rehacer la arquitectura.
 
 ## Requisitos
 
@@ -33,8 +35,14 @@ npm run preview  # vista previa del build
 
 ## Roadmap (orientativo)
 
-- Integración real con fuentes (arXiv / RSS)
-- Uso de LLM para resúmenes o clasificación, según diseño de producto
+**Fase técnica siguiente**
+
+- Cliente arXiv / RSS en `ingestSources`, límites de tasa y manejo de errores (proxy o backend si hay CORS).
+- Opcional: persistencia (p. ej. API + base de datos) y estados de carga en la UI en lugar de snapshot síncrono.
+
+**Producto**
+
+- Uso de LLM para resúmenes o clasificación, según diseño.
 
 ## Documentación interna
 
