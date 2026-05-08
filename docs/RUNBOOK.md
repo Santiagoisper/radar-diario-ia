@@ -2,8 +2,15 @@
 
 ## Entornos
 
-- **Preview / producción** en Vercel: variables `DATABASE_URL`, `CRON_SECRET`, sin secretos con prefijo `VITE_` en el servidor.
-- **Cliente**: `VITE_USE_MOCK_DATA` (mock local), `VITE_API_BASE_URL` si la API no es same-origin, `VITE_RADAR_SOURCE` (`mock` | `live`), `VITE_SENTRY_DSN` opcional.
+Configuración típica en Vercel:
+
+- **`DATABASE_URL`**: variable de **servidor** (Neon).
+- **`CRON_SECRET`**: variable de **servidor** (Bearer en `/api/radar/run`).
+- **`VITE_USE_MOCK_DATA=false`**: en variables de entorno del **build / runtime del cliente** para que el front use la API en lugar del mock síncrono.
+- **`VITE_RADAR_SOURCE=live`**: en cliente **solo si** el front debe pedir snapshots en modo `live` (alineado con los runs que persisten `source=live`).
+- **`VITE_API_BASE_URL`**: **solo** si la API no es same-origin que la SPA; si es el mismo dominio, dejar vacío.
+
+Opcional: `VITE_SENTRY_DSN` (cliente). No usar prefijo `VITE_` para secretos de servidor ni `VITE_DATABASE_URL`.
 
 ## Primer deploy (checklist mínima)
 
@@ -18,7 +25,17 @@
 - **`/api/radar/run`** acepta **GET** (Vercel Cron) y **POST** (manual / integraciones). **Ambos** exigen `Authorization: Bearer <CRON_SECRET>`.
 - Definido en `vercel.json`: `GET /api/radar/run?source=live` a las **06:00 UTC** (ajustar según “día de negocio” si hace falta otra TZ).
 - Vercel envía `Authorization: Bearer <CRON_SECRET>` cuando `CRON_SECRET` está configurado.
-- Ejecución manual: `curl -X POST https://<dominio>/api/radar/run -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" -d '{"source":"live"}'`.
+- Ejecución manual **GET** (igual que el cron; `-i` muestra status y headers):
+
+  ```bash
+  curl -i \
+    -H "Authorization: Bearer TU_CRON_SECRET" \
+    "https://TU-DOMINIO.vercel.app/api/radar/run?source=live"
+  ```
+
+  Sustituí `TU_CRON_SECRET` y `TU-DOMINIO`, o usá `"Authorization: Bearer $CRON_SECRET"` si exportaste la variable.
+
+- Ejecución manual **POST** (body JSON): `curl -X POST https://<dominio>/api/radar/run -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" -d '{"source":"live"}'`.
 
 ## Re-ejecutar un día concreto
 

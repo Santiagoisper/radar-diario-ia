@@ -9,13 +9,16 @@
 
 ## Entornos
 
-| Variable             | Dónde             | Uso                                                               |
-| -------------------- | ----------------- | ----------------------------------------------------------------- |
-| `DATABASE_URL`       | Servidor (Vercel) | Neon Postgres; si falta, `GET /api/radar/snapshot` no puede leer filas y devuelve 404 |
-| `CRON_SECRET`        | Servidor          | Protege `GET` y `POST` en `/api/radar/run` (Bearer obligatorio)   |
-| `VITE_USE_MOCK_DATA` | Build cliente     | `false` para leer API; por defecto mock síncrono en `npm run dev` |
-| `VITE_API_BASE_URL`  | Build cliente     | Origen del API (ej. vacío = mismo host en prod)                   |
-| `VITE_SENTRY_DSN`    | Build cliente     | Opcional; errores front                                           |
+| Variable               | Dónde             | Uso                                                                 |
+| ---------------------- | ----------------- | ------------------------------------------------------------------- |
+| `DATABASE_URL`         | Servidor (Vercel) | Neon Postgres; obligatoria para snapshot/run con persistencia       |
+| `CRON_SECRET`          | Servidor          | Protege `GET` y `POST` en `/api/radar/run` (Bearer obligatorio)     |
+| `VITE_USE_MOCK_DATA`   | Build / runtime cliente | `false` para usar la API (`GET /api/radar/snapshot`) en lugar del mock local |
+| `VITE_RADAR_SOURCE`    | Build / runtime cliente | `live` si el front debe pedir snapshots `source=live` (default en código: `mock`) |
+| `VITE_API_BASE_URL`    | Build / runtime cliente | Solo si el API **no** es same-origin; vacío = mismo host que la SPA |
+| `VITE_SENTRY_DSN`      | Build cliente     | Opcional; errores front                                             |
+
+Sin `DATABASE_URL` en servidor, `GET /api/radar/snapshot` no lee filas y devuelve **404**.
 
 ## Flujo
 
