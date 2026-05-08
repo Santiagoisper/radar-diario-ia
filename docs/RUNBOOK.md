@@ -7,9 +7,10 @@
 
 ## Cron diario
 
+- **`/api/radar/run`** acepta **GET** (Vercel Cron) y **POST** (manual / integraciones). **Ambos** exigen `Authorization: Bearer <CRON_SECRET>`.
 - Definido en `vercel.json`: `GET /api/radar/run?source=live` a las **06:00 UTC** (ajustar según “día de negocio” si hace falta otra TZ).
 - Vercel envía `Authorization: Bearer <CRON_SECRET>` cuando `CRON_SECRET` está configurado.
-- Ejecución manual equivalente: `curl -X POST https://<dominio>/api/radar/run -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" -d '{"source":"live"}'`.
+- Ejecución manual: `curl -X POST https://<dominio>/api/radar/run -H "Authorization: Bearer $CRON_SECRET" -H "Content-Type: application/json" -d '{"source":"live"}'`.
 
 ## Re-ejecutar un día concreto
 
@@ -17,8 +18,7 @@ Mismo endpoint con `date` en body (POST) o query (GET): `date=YYYY-MM-DD`.
 
 ## Lectura de snapshot (UI / integraciones)
 
-- `GET /api/radar/snapshot?date=YYYY-MM-DD&source=mock|live` — respuesta JSON `RadarAppData`.
-- `refresh=1` fuerza recomputo sin caché de fila (ver implementación en API).
+- `GET /api/radar/snapshot?date=YYYY-MM-DD&source=mock|live` — **solo lectura** de `radar_snapshots`: fila exacta o última del mismo `source`; respuesta JSON `RadarAppData`, o **404** si no hay datos persistidos. El parámetro `refresh` se ignora (el recomputo es solo vía `/api/radar/run` autenticado).
 
 ## Base de datos (Neon)
 

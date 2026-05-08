@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { RadarAppData } from "../../src/data/radarSnapshot";
 import { toRadarAppData } from "../../src/data/radarSnapshot";
 import {
@@ -9,6 +9,43 @@ import { runDailyRadarWorkflowAsync } from "../../src/domain/services/radar/runD
 import { getDb } from "../../src/db";
 import { radarSnapshots } from "../../src/db/schema";
 import { ingestArxivForSources } from "../../src/server/arxiv/ingestArxiv";
+
+/**
+ * Solo lectura: SELECT en radar_snapshots. Sin workflow, sin red, sin INSERT/UPDATE.
+ * 1) Fila exacta (run_date + mode). 2) Si no hay, última fila del mismo mode por created_at, luego run_date.
+ */
+export async function loadRadarSnapshotReadOnly(
+  date: string,
+  mode: "mock" | "live",
+): Promise<RadarAppData | null> {
+  const db = getDb();
+  if (!db) return null;
+
+  const exactRows = await db
+    .select()
+    .from(radarSnapshots)
+    .where(and(eq(radarSnapshots.runDate, date), eq(radarSnapshots.mode, mode)))
+    .limit(1);
+
+  const exact = exactRows[0];
+  if (exact?.payload) {
+    return exact.payload as RadarAppData;
+  }
+
+  const fallbackRows = await db
+    .select()
+    .from(radarSnapshots)
+    .where(eq(radarSnapshots.mode, mode))
+    .orderBy(desc(radarSnapshots.createdAt), desc(radarSnapshots.runDate))
+    .limit(1);
+
+  const fallback = fallbackRows[0];
+  if (fallback?.payload) {
+    return fallback.payload as RadarAppData;
+  }
+
+  return null;
+}
 
 export async function loadOrBuildRadarAppData(
   date: string,

@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
-import { loadOrBuildRadarAppData } from "../lib/buildRadarSnapshot";
+import { loadRadarSnapshotReadOnly } from "../lib/buildRadarSnapshot";
 import { logApi } from "../lib/logger";
 
 const QuerySchema = z.object({
@@ -9,6 +9,7 @@ const QuerySchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   source: z.enum(["mock", "live"]).optional().default("mock"),
+  /** Ignorado: el snapshot es solo lectura; forzar recomputo vía POST/GET /api/radar/run autenticado. */
   refresh: z.enum(["1", "0"]).optional(),
 });
 
@@ -38,12 +39,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   const date = parsed.data.date ?? new Date().toISOString().slice(0, 10);
   const mode = parsed.data.source;
-  const useCache = parsed.data.refresh !== "1";
   const t0 = Date.now();
 
   try {
-    logApi("info", "snapshot_start", { date, mode, useCache });
-    const data = await loadOrBuildRadarAppData(date, mode, { persist: true, useCache });
+    logApi("info", "snapshot_start", { date, mode, readOnly: true });
+    const data = await loadRadarSnapshotReadOnly(date, mode);
+    if (!data) {
+      logApi("info", "snapshot_not_found", { date, mode, ms: Date.now() - t0 });
+      res.status(404).json({
+        error: "not_found",
+        message: "No hay snapshot persistido para la fecha y modo pedidos (ni fallback reciente).",
+        date,
+        mode,
+      });
+      return;
+    }
     logApi("info", "snapshot_ok", { date, mode, ms: Date.now() - t0 });
     res.status(200).json(data);
   } catch (e) {
