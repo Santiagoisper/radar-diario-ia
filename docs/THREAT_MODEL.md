@@ -3,7 +3,7 @@
 ## Superficie
 
 - **SPA estática**: HTML/JS públicos; sin secretos en bundle (`VITE_*` solo DSN público de Sentry si se usa).
-- **API serverless**: `/api/radar/snapshot` (GET), `/api/radar/run` (POST).
+- **API serverless**: `/api/radar/snapshot` (GET, público, **solo lectura** en DB; sin workflow ni persistencia), `/api/radar/run` (GET o POST, Bearer `CRON_SECRET`, **único** camino que ejecuta pipeline y escribe `radar_snapshots`).
 - **Postgres (Neon)**: cadena de conexión solo en variables de servidor.
 
 ## Riesgos y mitigaciones
