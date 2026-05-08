@@ -1,73 +1,41 @@
-# React + TypeScript + Vite
+# Radar diario IA
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Aplicación web para un **radar intelectual diario** de papers de IA: home con métricas, briefing del día, listado de papers, autores seguidos, archivo, tendencias y configuración.
 
-Currently, two official plugins are available:
+## Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React 19, TypeScript, Vite 8
+- React Router 7
 
-## React Compiler
+## Estado del proyecto
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Los datos mostrados en la UI provienen de **semillas mock** (`src/data/seeds`). El **motor de dominio** en `src/domain/services/radar` implementa el pipeline completo (ingesta stub, normalización, deduplicación, temas, scoring, briefing y snapshot de tendencias) y está **preparado para conectar adapters reales** (p. ej. arXiv, LLM) sin rehacer la arquitectura.
 
-## Expanding the ESLint configuration
+## Requisitos
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- Node.js 20+ (recomendado LTS actual)
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Comandos
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci
+npm run dev      # desarrollo con HMR
+npm run build    # TypeScript (project references) + bundle de producción
+npm run lint
+npm test         # tests unitarios (Vitest)
+npm run preview  # vista previa del build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Despliegue
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- Producción (Vercel): [radar-diario-ia.vercel.app](https://radar-diario-ia.vercel.app)
+- Código: [github.com/Santiagoisper/radar-diario-ia](https://github.com/Santiagoisper/radar-diario-ia)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Roadmap (orientativo)
+
+- Integración real con fuentes (arXiv / RSS)
+- Uso de LLM para resúmenes o clasificación, según diseño de producto
+
+## Documentación interna
+
+Notas de contexto del proyecto (sin secretos de infra): [CLAUDIO_MEMORY.md](./CLAUDIO_MEMORY.md).
