@@ -25,6 +25,7 @@ npm run dev      # desarrollo con HMR
 npm run build    # TypeScript (project references) + bundle de producción
 npm run lint
 npm test         # tests unitarios (Vitest)
+npm run test:e2e # smoke E2E con Playwright (levanta Vite en :5174)
 npm run preview  # vista previa del build
 ```
 
