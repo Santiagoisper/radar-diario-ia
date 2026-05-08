@@ -19,8 +19,7 @@ function computeAuthorityScore(paper: Paper, watchAuthors: AuthorWatch[]): numbe
 
   if (matched.length === 0) return 5;
 
-  const priorityAvg =
-    matched.reduce((acc, author) => acc + author.priority, 0) / matched.length;
+  const priorityAvg = matched.reduce((acc, author) => acc + author.priority, 0) / matched.length;
   return clampScore(5 + priorityAvg * 0.45);
 }
 
@@ -43,9 +42,10 @@ function computeConceptScore(paper: Paper, themes: PaperTheme[]): number {
 
 function computePersonalScore(paper: Paper, watchAuthors: AuthorWatch[]): number {
   const matchedPriority = watchAuthors
-    .filter((watch) =>
-      paper.authors.includes(watch.display_name) ||
-      watch.aliases.some((alias) => paper.authors.includes(alias)),
+    .filter(
+      (watch) =>
+        paper.authors.includes(watch.display_name) ||
+        watch.aliases.some((alias) => paper.authors.includes(alias)),
     )
     .reduce((acc, author) => acc + author.priority, 0);
 

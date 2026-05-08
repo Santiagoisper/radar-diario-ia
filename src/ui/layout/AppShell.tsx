@@ -22,9 +22,7 @@ export function AppShell() {
               key={item.to}
               to={item.to}
               end={item.end}
-              className={({ isActive }) =>
-                `nav-link${isActive ? " nav-link-active" : ""}`
-              }
+              className={({ isActive }) => `nav-link${isActive ? " nav-link-active" : ""}`}
             >
               {item.label}
             </NavLink>

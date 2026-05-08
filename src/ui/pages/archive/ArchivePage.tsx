@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useRadarAppData } from "../../../hooks/useRadarAppData";
+import { PageError, PageSkeleton } from "../../components/RadarStatus";
 import {
   buildArchiveDetail,
   buildArchiveFilterOptions,
@@ -14,13 +16,26 @@ const defaultFilters: ArchiveFilters = {
 };
 
 export function ArchivePage() {
+  const { data, isPending, isError, error, refetch } = useRadarAppData();
   const [filters, setFilters] = useState<ArchiveFilters>(defaultFilters);
   const [selectedBriefingId, setSelectedBriefingId] = useState<string>("");
 
-  const options = useMemo(() => buildArchiveFilterOptions(), []);
-  const items = useMemo(() => buildArchiveList(filters), [filters]);
+  const options = useMemo(
+    () => (data ? buildArchiveFilterOptions(data) : { themes: [], authors: [] }),
+    [data],
+  );
+
+  const items = useMemo(() => (data ? buildArchiveList(filters, data) : []), [data, filters]);
+
   const effectiveSelectedId = selectedBriefingId || items[0]?.id || "";
-  const detail = buildArchiveDetail(effectiveSelectedId);
+  const detail = data && effectiveSelectedId ? buildArchiveDetail(effectiveSelectedId, data) : null;
+
+  if (isPending) {
+    return <PageSkeleton title="Archivo" />;
+  }
+  if (isError) {
+    return <PageError message={error.message} onRetry={() => void refetch()} />;
+  }
 
   return (
     <div className="page">
@@ -38,9 +53,7 @@ export function ArchivePage() {
               type="text"
               placeholder="YYYY-MM-DD"
               value={filters.dateQuery}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, dateQuery: event.target.value }))
-              }
+              onChange={(event) => setFilters((current) => ({ ...current, dateQuery: event.target.value }))}
             />
           </label>
 
@@ -48,9 +61,7 @@ export function ArchivePage() {
             Tema
             <select
               value={filters.theme}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, theme: event.target.value }))
-              }
+              onChange={(event) => setFilters((current) => ({ ...current, theme: event.target.value }))}
             >
               <option value="all">Todos</option>
               {options.themes.map((theme) => (
@@ -65,9 +76,7 @@ export function ArchivePage() {
             Autor mencionado
             <select
               value={filters.author}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, author: event.target.value }))
-              }
+              onChange={(event) => setFilters((current) => ({ ...current, author: event.target.value }))}
             >
               <option value="all">Todos</option>
               {options.authors.map((author) => (
@@ -83,7 +92,10 @@ export function ArchivePage() {
             <select
               value={filters.range}
               onChange={(event) =>
-                setFilters((current) => ({ ...current, range: event.target.value as ArchiveFilters["range"] }))
+                setFilters((current) => ({
+                  ...current,
+                  range: event.target.value as ArchiveFilters["range"],
+                }))
               }
             >
               <option value="7d">Últimos 7 días</option>

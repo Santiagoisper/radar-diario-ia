@@ -55,9 +55,7 @@ describe("calculatePaperScore", () => {
 
   it("pondera dimensiones según pesos que suman 1", () => {
     const paper = basePaper();
-    const themes: PaperTheme[] = [
-      { id: "t1", paper_id: paper.id, theme: "x", confidence: 0.8 },
-    ];
+    const themes: PaperTheme[] = [{ id: "t1", paper_id: paper.id, theme: "x", confidence: 0.8 }];
     const weights: RadarScoringWeights = {
       novelty_score: 1,
       authority_score: 0,

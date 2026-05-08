@@ -1,4 +1,4 @@
-import { DEFAULT_RADAR_DATE, getRadarAppData } from "../../../data/radarSnapshot";
+import { DEFAULT_RADAR_DATE, type RadarAppData } from "../../../data/radarSnapshot";
 import type { PaperScore, PaperTheme } from "../../../domain/models";
 
 export type PapersSort = "score_desc" | "date_desc" | "title_asc" | "author_asc";
@@ -47,9 +47,8 @@ const emptyScore: PaperScore = {
 
 function getMainTheme(paperId: string, themeRows: PaperTheme[]): string {
   return (
-    themeRows
-      .filter((theme) => theme.paper_id === paperId)
-      .sort((a, b) => b.confidence - a.confidence)[0]?.theme ?? "sin clasificar"
+    themeRows.filter((theme) => theme.paper_id === paperId).sort((a, b) => b.confidence - a.confidence)[0]
+      ?.theme ?? "sin clasificar"
   );
 }
 
@@ -57,8 +56,8 @@ function getScore(paperId: string, scores: PaperScore[]): PaperScore {
   return scores.find((score) => score.paper_id === paperId) ?? { ...emptyScore, paper_id: paperId };
 }
 
-export function buildPaperList(): PaperListItem[] {
-  const { papers, themes, scores } = getRadarAppData().workflow;
+export function buildPaperList(data: RadarAppData): PaperListItem[] {
+  const { papers, themes, scores } = data.workflow;
 
   return papers.map((paper) => {
     const score = getScore(paper.id, scores);
@@ -76,8 +75,8 @@ export function buildPaperList(): PaperListItem[] {
   });
 }
 
-export function buildFilterOptions() {
-  const { papers, themes } = getRadarAppData().workflow;
+export function buildFilterOptions(data: RadarAppData) {
+  const { papers, themes } = data.workflow;
   const authors = Array.from(new Set(papers.flatMap((paper) => paper.authors))).sort();
   const themeLabels = Array.from(new Set(themes.map((theme) => theme.theme))).sort();
   const categories = Array.from(new Set(papers.flatMap((paper) => paper.categories))).sort();
@@ -111,7 +110,8 @@ export function applyPapersFilters(
 
   return filtered.sort((a, b) => {
     if (filters.sortBy === "score_desc") return b.totalScore - a.totalScore;
-    if (filters.sortBy === "date_desc") return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
+    if (filters.sortBy === "date_desc")
+      return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime();
     if (filters.sortBy === "title_asc") return a.title.localeCompare(b.title);
 
     const authorA = a.authors[0] ?? "";
@@ -120,8 +120,8 @@ export function applyPapersFilters(
   });
 }
 
-export function getPaperDetail(paperId: string): PaperDetail | null {
-  const { papers, themes, scores } = getRadarAppData().workflow;
+export function getPaperDetail(paperId: string, data: RadarAppData): PaperDetail | null {
+  const { papers, themes, scores } = data.workflow;
   const paper = papers.find((item) => item.id === paperId);
   if (!paper) return null;
 

@@ -1,4 +1,4 @@
-import { DEFAULT_RADAR_DATE, getRadarAppData, resolvePaper } from "../../../data/radarSnapshot";
+import { type RadarAppData, resolvePaper } from "../../../data/radarSnapshot";
 import type { DailyBriefing, DailyBriefingItem } from "../../../domain/models";
 import type { RadarWorkflowResult } from "../../../domain/services/radar/types";
 
@@ -63,9 +63,8 @@ function getPaperTheme(
   themes: { paper_id: string; theme: string; confidence: number }[],
 ): string {
   return (
-    themes
-      .filter((item) => item.paper_id === paperId)
-      .sort((a, b) => b.confidence - a.confidence)[0]?.theme ?? "sin clasificar"
+    themes.filter((item) => item.paper_id === paperId).sort((a, b) => b.confidence - a.confidence)[0]
+      ?.theme ?? "sin clasificar"
   );
 }
 
@@ -130,12 +129,10 @@ function buildListItem(
   };
 }
 
-export function buildArchiveFilterOptions() {
-  const { briefings, briefingItems, workflow } = getRadarAppData();
+export function buildArchiveFilterOptions(data: RadarAppData) {
+  const { briefings, briefingItems, workflow } = data;
 
-  const themes = Array.from(
-    new Set(briefings.flatMap((briefing) => briefing.relevant_topics)),
-  ).sort();
+  const themes = Array.from(new Set(briefings.flatMap((briefing) => briefing.relevant_topics))).sort();
 
   const authorPool = new Set<string>();
   briefings.forEach((briefing) => {
@@ -151,8 +148,8 @@ export function buildArchiveFilterOptions() {
   };
 }
 
-export function buildArchiveList(filters: ArchiveFilters, radarDate: string = DEFAULT_RADAR_DATE): ArchiveListItem[] {
-  const { briefings, briefingItems, workflow } = getRadarAppData();
+export function buildArchiveList(filters: ArchiveFilters, data: RadarAppData): ArchiveListItem[] {
+  const { briefings, briefingItems, workflow, radarDate } = data;
   const { themes } = workflow;
 
   return briefings
@@ -167,8 +164,8 @@ export function buildArchiveList(filters: ArchiveFilters, radarDate: string = DE
     .sort((a, b) => b.date.localeCompare(a.date));
 }
 
-export function buildArchiveDetail(briefingId: string): ArchiveBriefingDetail | null {
-  const { briefings, briefingItems, workflow } = getRadarAppData();
+export function buildArchiveDetail(briefingId: string, data: RadarAppData): ArchiveBriefingDetail | null {
+  const { briefings, briefingItems, workflow } = data;
   const { themes, scores } = workflow;
 
   const briefing = briefings.find((item) => item.id === briefingId);

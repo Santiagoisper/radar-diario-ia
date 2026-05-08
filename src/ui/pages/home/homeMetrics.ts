@@ -1,8 +1,11 @@
-import { getRadarAppData } from "../../../data/radarSnapshot";
+import type { RadarAppData } from "../../../data/radarSnapshot";
 import { authorWatchSeed } from "../../../data/seeds";
 import type { DailyBriefing } from "../../../domain/models";
 
-function getTopPaperIds(briefingId: string, briefingItems: { briefing_id: string; paper_id: string; rank: number }[]): string[] {
+function getTopPaperIds(
+  briefingId: string,
+  briefingItems: { briefing_id: string; paper_id: string; rank: number }[],
+): string[] {
   return briefingItems
     .filter((item) => item.briefing_id === briefingId)
     .sort((a, b) => a.rank - b.rank)
@@ -18,8 +21,8 @@ function getLatestBriefing(briefings: DailyBriefing[]): DailyBriefing | undefine
   return [...briefings].sort((a, b) => b.briefing_date.localeCompare(a.briefing_date))[0];
 }
 
-export function buildHomeViewModel() {
-  const { workflow, briefings, briefingItems } = getRadarAppData();
+export function buildHomeViewModel(data: RadarAppData) {
+  const { workflow, briefings, briefingItems } = data;
   const { papers, themes, scores } = workflow;
   const watchAuthors = authorWatchSeed;
 
@@ -43,8 +46,7 @@ export function buildHomeViewModel() {
       themeCounts.set(theme.theme, (themeCounts.get(theme.theme) ?? 0) + 1);
     });
 
-  const dominantTheme =
-    [...themeCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "sin señal";
+  const dominantTheme = [...themeCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? "sin señal";
 
   const weeklyTrend = workflow.trendSnapshot.trend_summary;
 

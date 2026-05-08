@@ -1,4 +1,4 @@
-import { getRadarAppData } from "../../../data/radarSnapshot";
+import type { RadarAppData } from "../../../data/radarSnapshot";
 import type { Paper, PaperScore, PaperTheme } from "../../../domain/models";
 import type { RadarWorkflowResult } from "../../../domain/services/radar/types";
 
@@ -72,9 +72,8 @@ export interface TrendsViewModel {
 
 function getMainTheme(paperId: string, themeRows: PaperTheme[]): string {
   return (
-    themeRows
-      .filter((theme) => theme.paper_id === paperId)
-      .sort((a, b) => b.confidence - a.confidence)[0]?.theme ?? "sin clasificar"
+    themeRows.filter((theme) => theme.paper_id === paperId).sort((a, b) => b.confidence - a.confidence)[0]
+      ?.theme ?? "sin clasificar"
   );
 }
 
@@ -83,9 +82,7 @@ function getScore(paperId: string, scores: PaperScore[]): number {
 }
 
 function getReferenceDate(papers: Paper[]): Date {
-  const maxDate = papers
-    .map((paper) => new Date(paper.published_at).getTime())
-    .sort((a, b) => b - a)[0];
+  const maxDate = papers.map((paper) => new Date(paper.published_at).getTime()).sort((a, b) => b - a)[0];
 
   return Number.isFinite(maxDate) ? new Date(maxDate) : new Date();
 }
@@ -176,10 +173,7 @@ function toRankedBars(map: Map<string, number>, limit = 8): BarDatum[] {
     .map(([label, value]) => ({ label, value }));
 }
 
-function buildThemeGrowth(
-  currentRows: BasePaperRow[],
-  previousRows: BasePaperRow[],
-): ThemeGrowthItem[] {
+function buildThemeGrowth(currentRows: BasePaperRow[], previousRows: BasePaperRow[]): ThemeGrowthItem[] {
   const curr = countByTheme(currentRows);
   const prev = countByTheme(previousRows);
   const allThemes = new Set([...curr.keys(), ...prev.keys()]);
@@ -270,8 +264,7 @@ function buildConceptLines(rows: BasePaperRow[]): ConceptLineItem[] {
         frequency: themeRows.length,
         papers: paperTitles,
         authors,
-        interpretation:
-          `La línea ${theme} muestra ${themeRows.length} apariciones en el período, consolidándose como señal de diseño y ejecución.`,
+        interpretation: `La línea ${theme} muestra ${themeRows.length} apariciones en el período, consolidándose como señal de diseño y ejecución.`,
       } satisfies ConceptLineItem;
     });
 }
@@ -291,8 +284,12 @@ function buildConceptualReading(
 
 function getEvolutionBars(filters: TrendsFilters, rows: BasePaperRow[], ref: Date): BarDatum[] {
   if (filters.period === "all") {
-    const weekly = rows.filter((row) => isWithin(row.date, new Date(ref.getTime() - 6 * 86400000), ref)).length;
-    const monthly = rows.filter((row) => isWithin(row.date, new Date(ref.getTime() - 29 * 86400000), ref)).length;
+    const weekly = rows.filter((row) =>
+      isWithin(row.date, new Date(ref.getTime() - 6 * 86400000), ref),
+    ).length;
+    const monthly = rows.filter((row) =>
+      isWithin(row.date, new Date(ref.getTime() - 29 * 86400000), ref),
+    ).length;
 
     return [
       { label: "Últimos 7 días", value: weekly },
@@ -312,8 +309,8 @@ function getEvolutionBars(filters: TrendsFilters, rows: BasePaperRow[], ref: Dat
   ];
 }
 
-export function buildTrendsFilterOptions() {
-  const rows = buildPaperRows(getRadarAppData().workflow);
+export function buildTrendsFilterOptions(data: RadarAppData) {
+  const rows = buildPaperRows(data.workflow);
 
   return {
     themes: Array.from(new Set(rows.map((row) => row.theme))).sort(),
@@ -322,8 +319,8 @@ export function buildTrendsFilterOptions() {
   };
 }
 
-export function buildTrendsViewModel(filters: TrendsFilters): TrendsViewModel {
-  const workflow = getRadarAppData().workflow;
+export function buildTrendsViewModel(filters: TrendsFilters, data: RadarAppData): TrendsViewModel {
+  const workflow = data.workflow;
   const allRows = buildPaperRows(workflow);
   const referenceDate = getReferenceDate(workflow.papers);
   const filteredRows = applyFilters(allRows, filters, referenceDate);
@@ -349,8 +346,7 @@ export function buildTrendsViewModel(filters: TrendsFilters): TrendsViewModel {
   const conceptLines = buildConceptLines(filteredRows);
 
   const dominantTheme = themeBars[0]?.label ?? "sin señal";
-  const fastestGrowingTheme =
-    [...growthThemes].sort((a, b) => b.delta - a.delta)[0]?.theme ?? dominantTheme;
+  const fastestGrowingTheme = [...growthThemes].sort((a, b) => b.delta - a.delta)[0]?.theme ?? dominantTheme;
   const mostRecurrentAuthor = recurrentAuthors[0]?.author ?? "sin recurrencia";
 
   const periodLabel =

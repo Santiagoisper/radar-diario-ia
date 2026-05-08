@@ -36,4 +36,26 @@ test.describe("Smoke E2E", () => {
     await page.getByRole("link", { name: "Briefing de hoy" }).click();
     await expect(page.getByRole("heading", { level: 2 })).toContainText(/Radar Diario de IA/);
   });
+
+  test("archivo: filtros de rango y tema son usables", async ({ page }) => {
+    await page.goto("/archivo");
+    await expect(page.getByRole("heading", { name: "Archivo" })).toBeVisible();
+    await page.getByLabel(/Rango temporal/i).selectOption("7d");
+    await page.getByLabel(/Rango temporal/i).selectOption("all");
+    await expect(page.getByRole("heading", { name: "Briefings históricos" })).toBeVisible();
+  });
+
+  test("tendencias: cambiar período actualiza resumen", async ({ page }) => {
+    await page.goto("/tendencias");
+    await expect(page.getByRole("heading", { name: "Tendencias" })).toBeVisible();
+    const periodSelect = page.locator(".trends-filters select").first();
+    await periodSelect.selectOption("7d");
+    await expect(page.getByRole("heading", { name: "Período" })).toBeVisible();
+    await periodSelect.selectOption("all");
+  });
+
+  test("configuración: página carga", async ({ page }) => {
+    await page.goto("/configuracion");
+    await expect(page.getByRole("heading", { name: "Configuración" })).toBeVisible();
+  });
 });

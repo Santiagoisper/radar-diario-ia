@@ -17,9 +17,8 @@ interface RankedPaper {
 
 function getThemeForPaper(paperId: string, themes: PaperTheme[]): string {
   return (
-    themes
-      .filter((theme) => theme.paper_id === paperId)
-      .sort((a, b) => b.confidence - a.confidence)[0]?.theme ?? "sin clasificar"
+    themes.filter((theme) => theme.paper_id === paperId).sort((a, b) => b.confidence - a.confidence)[0]
+      ?.theme ?? "sin clasificar"
   );
 }
 
@@ -63,17 +62,12 @@ function buildDirectionalView(topics: string[], topPapers: RankedPaper[]): strin
   const first = topics[0] ?? "investigación aplicada";
   const second = topics[1] ?? first;
   const avgScore =
-    topPapers.reduce((acc, item) => acc + item.score.total_score, 0) /
-    Math.max(topPapers.length, 1);
+    topPapers.reduce((acc, item) => acc + item.score.total_score, 0) / Math.max(topPapers.length, 1);
 
   return `Se observa convergencia entre ${first} y ${second}, con una señal de ejecución creciente en papers de score promedio ${avgScore.toFixed(2)}.`;
 }
 
-function buildConnections(
-  topPapers: RankedPaper[],
-  watchAuthors: AuthorWatch[],
-  topics: string[],
-): string {
+function buildConnections(topPapers: RankedPaper[], watchAuthors: AuthorWatch[], topics: string[]): string {
   const trackedNames = new Set<string>();
   watchAuthors.forEach((author) => {
     trackedNames.add(author.display_name);
@@ -81,11 +75,7 @@ function buildConnections(
   });
 
   const appearingTracked = Array.from(
-    new Set(
-      topPapers
-        .flatMap((item) => item.paper.authors)
-        .filter((author) => trackedNames.has(author)),
-    ),
+    new Set(topPapers.flatMap((item) => item.paper.authors).filter((author) => trackedNames.has(author))),
   );
 
   const trackedChunk =
@@ -120,12 +110,14 @@ function buildMarkdown(
     )
     .join("\n");
 
-  return `# ${title}\n\n` +
+  return (
+    `# ${title}\n\n` +
     `## Temas relevantes\n${topicsBlock}\n\n` +
     `## Hacia dónde apunta la idea\n${directionalView}\n\n` +
     `## Cómo se conectan las ideas\n${connections}\n\n` +
     `## Papers destacados\n${tableHeader}\n${tableDivider}\n${tableRows}\n\n` +
-    `## Utilidad práctica\n${practicalValue}`;
+    `## Utilidad práctica\n${practicalValue}`
+  );
 }
 
 /** Generador determinístico de briefing (sin LLM). */
@@ -157,8 +149,7 @@ export function generateDailyBriefing(params: {
     id: `brief-${params.date}`,
     briefing_date: params.date,
     title,
-    executive_summary:
-      `Señal central: ${relevantTopics.slice(0, 3).join(", ")} lideran el recorte diario con foco práctico.`,
+    executive_summary: `Señal central: ${relevantTopics.slice(0, 3).join(", ")} lideran el recorte diario con foco práctico.`,
     relevant_topics: relevantTopics,
     directional_view: directionalView,
     conceptual_connections: conceptualConnections,

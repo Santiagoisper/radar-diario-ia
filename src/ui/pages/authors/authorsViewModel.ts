@@ -1,4 +1,4 @@
-import { DEFAULT_RADAR_DATE, getRadarAppData } from "../../../data/radarSnapshot";
+import type { RadarAppData } from "../../../data/radarSnapshot";
 import { authorWatchSeed } from "../../../data/seeds";
 
 interface AuthorLinkedPaper {
@@ -37,11 +37,13 @@ function matchAuthor(paperAuthor: string, displayName: string, aliases: string[]
   return paperAuthor === displayName || aliases.includes(paperAuthor);
 }
 
-function getPaperMainTheme(paperId: string, themes: { paper_id: string; theme: string; confidence: number }[]): string {
+function getPaperMainTheme(
+  paperId: string,
+  themes: { paper_id: string; theme: string; confidence: number }[],
+): string {
   return (
-    themes
-      .filter((theme) => theme.paper_id === paperId)
-      .sort((a, b) => b.confidence - a.confidence)[0]?.theme ?? "sin clasificar"
+    themes.filter((theme) => theme.paper_id === paperId).sort((a, b) => b.confidence - a.confidence)[0]
+      ?.theme ?? "sin clasificar"
   );
 }
 
@@ -61,9 +63,7 @@ function getAuthorPapers(
   scores: { paper_id: string; total_score: number }[],
 ): AuthorLinkedPaper[] {
   return papers
-    .filter((paper) =>
-      paper.authors.some((author) => matchAuthor(author, displayName, aliases)),
-    )
+    .filter((paper) => paper.authors.some((author) => matchAuthor(author, displayName, aliases)))
     .map((paper) => ({
       id: paper.id,
       title: paper.title,
@@ -107,8 +107,8 @@ function detectFocusSignal(papers: AuthorLinkedPaper[], topThemes: AuthorTopicCo
   return `Predomina continuidad temática en ${dominant}, con variaciones tácticas en papers recientes.`;
 }
 
-export function buildAuthorsListView(): AuthorListItem[] {
-  const { papers, themes, scores } = getRadarAppData().workflow;
+export function buildAuthorsListView(data: RadarAppData): AuthorListItem[] {
+  const { papers, themes, scores } = data.workflow;
 
   return authorWatchSeed
     .map((author) => {
@@ -131,11 +131,11 @@ export function buildAuthorsListView(): AuthorListItem[] {
     .sort((a, b) => b.priority - a.priority);
 }
 
-export function buildAuthorDetail(authorId: string): AuthorDetail | null {
+export function buildAuthorDetail(authorId: string, data: RadarAppData): AuthorDetail | null {
   const author = authorWatchSeed.find((item) => item.id === authorId);
   if (!author) return null;
 
-  const { papers, themes, scores } = getRadarAppData().workflow;
+  const { papers, themes, scores } = data.workflow;
   const authorPapers = getAuthorPapers(author.display_name, author.aliases, papers, themes, scores);
   const topThemes = getTopThemes(authorPapers);
   const focusSignal = detectFocusSignal(authorPapers, topThemes);
@@ -156,9 +156,10 @@ export function buildAuthorDetail(authorId: string): AuthorDetail | null {
   };
 }
 
-export function getAuthorsActivityToday(radarDate: string = DEFAULT_RADAR_DATE) {
-  const todayAuthors = buildAuthorsListView().filter((author) =>
-    author.lastAppearance ? formatDateISO(author.lastAppearance) === radarDate : false,
+export function getAuthorsActivityToday(data: RadarAppData, radarDate?: string) {
+  const date = radarDate ?? data.radarDate;
+  const todayAuthors = buildAuthorsListView(data).filter((author) =>
+    author.lastAppearance ? formatDateISO(author.lastAppearance) === date : false,
   );
 
   return {

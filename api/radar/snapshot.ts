@@ -1,0 +1,56 @@
+import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { z } from "zod";
+import { loadOrBuildRadarAppData } from "../lib/buildRadarSnapshot";
+import { logApi } from "../lib/logger";
+
+const QuerySchema = z.object({
+  date: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  source: z.enum(["mock", "live"]).optional().default("mock"),
+  refresh: z.enum(["1", "0"]).optional(),
+});
+
+export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  res.setHeader("Content-Type", "application/json");
+
+  if (req.method === "OPTIONS") {
+    res.status(204).end();
+    return;
+  }
+
+  if (req.method !== "GET") {
+    res.status(405).json({ error: "method_not_allowed" });
+    return;
+  }
+
+  const parsed = QuerySchema.safeParse({
+    date: req.query.date,
+    source: req.query.source,
+    refresh: req.query.refresh,
+  });
+
+  if (!parsed.success) {
+    res.status(400).json({ error: "invalid_query", details: parsed.error.flatten() });
+    return;
+  }
+
+  const date = parsed.data.date ?? new Date().toISOString().slice(0, 10);
+  const mode = parsed.data.source;
+  const useCache = parsed.data.refresh !== "1";
+  const t0 = Date.now();
+
+  try {
+    logApi("info", "snapshot_start", { date, mode, useCache });
+    const data = await loadOrBuildRadarAppData(date, mode, { persist: true, useCache });
+    logApi("info", "snapshot_ok", { date, mode, ms: Date.now() - t0 });
+    res.status(200).json(data);
+  } catch (e) {
+    logApi("error", "snapshot_fail", { message: e instanceof Error ? e.message : String(e) });
+    res.status(500).json({
+      error: "snapshot_failed",
+      message: e instanceof Error ? e.message : String(e),
+    });
+  }
+}

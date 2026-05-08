@@ -38,7 +38,7 @@ describe("radarSnapshot / mergeBriefingsAndItems", () => {
 describe("view models desde fachada", () => {
   it("home: top papers pertenecen al set de papers del workflow", () => {
     const data = getRadarAppData(DEFAULT_RADAR_DATE);
-    const vm = buildHomeViewModel();
+    const vm = buildHomeViewModel(data);
     const ids = new Set(data.workflow.papers.map((p) => p.id));
 
     expect(vm.topPapers.length).toBeGreaterThan(0);
@@ -47,7 +47,7 @@ describe("view models desde fachada", () => {
 
   it("briefing de hoy: papers destacados coherentes con el workflow", () => {
     const data = getRadarAppData(DEFAULT_RADAR_DATE);
-    const vm = buildBriefingTodayViewModel();
+    const vm = buildBriefingTodayViewModel(data);
     const ids = new Set(data.workflow.papers.map((p) => p.id));
 
     expect(vm.highlightedPapers.length).toBeGreaterThan(0);

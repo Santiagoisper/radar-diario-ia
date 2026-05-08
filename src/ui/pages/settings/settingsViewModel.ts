@@ -1,4 +1,10 @@
-import { authorWatchSeed, scoringWeightsSeed, sourcesSeed, themeKeywordsSeed, workflowScheduleSeed } from "../../../data/seeds";
+import {
+  authorWatchSeed,
+  scoringWeightsSeed,
+  sourcesSeed,
+  themeKeywordsSeed,
+  workflowScheduleSeed,
+} from "../../../data/seeds";
 import type { AuthorWatch, Source } from "../../../domain/models";
 
 export interface ScoringWeights {
@@ -57,9 +63,7 @@ export function validateWeightsSum(weights: ScoringWeights) {
 }
 
 export function toggleSourceActive(sources: Source[], sourceId: string): Source[] {
-  return sources.map((source) =>
-    source.id === sourceId ? { ...source, active: !source.active } : source,
-  );
+  return sources.map((source) => (source.id === sourceId ? { ...source, active: !source.active } : source));
 }
 
 export function updateSourceFrequency(
@@ -67,9 +71,7 @@ export function updateSourceFrequency(
   sourceId: string,
   frequency: Source["frequency"],
 ): Source[] {
-  return sources.map((source) =>
-    source.id === sourceId ? { ...source, frequency } : source,
-  );
+  return sources.map((source) => (source.id === sourceId ? { ...source, frequency } : source));
 }
 
 export function updateAuthorField(
@@ -77,9 +79,7 @@ export function updateAuthorField(
   authorId: string,
   patch: Partial<AuthorWatch>,
 ): AuthorWatch[] {
-  return authors.map((author) =>
-    author.id === authorId ? { ...author, ...patch } : author,
-  );
+  return authors.map((author) => (author.id === authorId ? { ...author, ...patch } : author));
 }
 
 export function addThemeKeyword(
@@ -123,10 +123,30 @@ export function updateWeight(
 
 export function scoringWeightMeta() {
   return [
-    { key: "novelty_weight", label: "novelty_score", description: "Peso de novedad conceptual respecto de líneas previas." },
-    { key: "authority_weight", label: "authority_score", description: "Peso de autoridad técnica de autores y señales de credibilidad." },
-    { key: "relevance_weight", label: "relevance_score", description: "Peso de relevancia para agenda estratégica actual." },
-    { key: "concept_weight", label: "concept_score", description: "Peso de densidad conceptual y potencial de conexión." },
-    { key: "personal_weight", label: "personal_score", description: "Peso de ajuste a foco personal del usuario." },
+    {
+      key: "novelty_weight",
+      label: "novelty_score",
+      description: "Peso de novedad conceptual respecto de líneas previas.",
+    },
+    {
+      key: "authority_weight",
+      label: "authority_score",
+      description: "Peso de autoridad técnica de autores y señales de credibilidad.",
+    },
+    {
+      key: "relevance_weight",
+      label: "relevance_score",
+      description: "Peso de relevancia para agenda estratégica actual.",
+    },
+    {
+      key: "concept_weight",
+      label: "concept_score",
+      description: "Peso de densidad conceptual y potencial de conexión.",
+    },
+    {
+      key: "personal_weight",
+      label: "personal_score",
+      description: "Peso de ajuste a foco personal del usuario.",
+    },
   ] as const;
 }

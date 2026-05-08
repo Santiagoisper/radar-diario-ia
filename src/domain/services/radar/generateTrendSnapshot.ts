@@ -18,9 +18,8 @@ function dateWindowForPeriod(periodType: TrendSnapshot["period_type"], reference
 
 function getPaperMainTheme(paperId: string, themes: PaperTheme[]): string {
   return (
-    themes
-      .filter((theme) => theme.paper_id === paperId)
-      .sort((a, b) => b.confidence - a.confidence)[0]?.theme ?? "sin clasificar"
+    themes.filter((theme) => theme.paper_id === paperId).sort((a, b) => b.confidence - a.confidence)[0]
+      ?.theme ?? "sin clasificar"
   );
 }
 
@@ -73,9 +72,9 @@ function buildTrendSummary(
 
 /** Genera snapshot de tendencias para un período sin depender de LLM. */
 export function generateTrendSnapshot(input: TrendSnapshotInput): TrendSnapshot {
-  const latestDateMs = input.papers
-    .map((paper) => new Date(paper.published_at).getTime())
-    .sort((a, b) => b - a)[0] ?? Date.now();
+  const latestDateMs =
+    input.papers.map((paper) => new Date(paper.published_at).getTime()).sort((a, b) => b - a)[0] ??
+    Date.now();
 
   const { start, end } = dateWindowForPeriod(input.periodType, new Date(latestDateMs));
 

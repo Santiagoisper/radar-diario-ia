@@ -1,4 +1,4 @@
-import { getRadarAppData } from "../../../data/radarSnapshot";
+import type { RadarAppData } from "../../../data/radarSnapshot";
 import type { DailyBriefing } from "../../../domain/models";
 
 interface BriefingThemeItem {
@@ -132,10 +132,7 @@ function buildRelevantThemes(papers: BriefingHighlightedPapersInput): BriefingTh
     .slice(0, 7);
 }
 
-function ensureThemeCoverage(
-  themes: BriefingThemeItem[],
-  fallbackThemes: string[],
-): BriefingThemeItem[] {
+function ensureThemeCoverage(themes: BriefingThemeItem[], fallbackThemes: string[]): BriefingThemeItem[] {
   const merged = [...themes];
 
   for (const fallbackTheme of fallbackThemes) {
@@ -145,8 +142,7 @@ function ensureThemeCoverage(
     merged.push({
       theme: fallbackTheme,
       paperCount: 0,
-      explanation:
-        "Tema estratégico relevante en el briefing, con señal indirecta en el set del día.",
+      explanation: "Tema estratégico relevante en el briefing, con señal indirecta en el set del día.",
       signalLevel: "baja",
     });
   }
@@ -171,16 +167,18 @@ function buildMarkdown(view: Omit<BriefingTodayViewModel, "markdown">): string {
     )
     .join("\n");
 
-  return `# ${view.title}\n\n` +
+  return (
+    `# ${view.title}\n\n` +
     `## Bloque 1 — Temas relevantes\n${themesSection}\n\n` +
     `## Bloque 2 — Hacia dónde apunta la idea\n${view.directionalView}\n\n` +
     `## Bloque 3 — Cómo se conectan las ideas\n${view.conceptualConnections}\n\n` +
     `## Bloque 4 — Papers destacados\n${papersTableHeader}\n${papersTableDivider}\n${papersRows}\n\n` +
-    `## Bloque 5 — Utilidad práctica\n${view.practicalValue}`;
+    `## Bloque 5 — Utilidad práctica\n${view.practicalValue}`
+  );
 }
 
-export function buildBriefingTodayViewModel(): BriefingTodayViewModel {
-  const { workflow, briefings, briefingItems } = getRadarAppData();
+export function buildBriefingTodayViewModel(data: RadarAppData): BriefingTodayViewModel {
+  const { workflow, briefings, briefingItems } = data;
   const { papers, themes, scores } = workflow;
   const latestBriefing = getLatestBriefing(briefings);
 
@@ -199,13 +197,7 @@ export function buildBriefingTodayViewModel(): BriefingTodayViewModel {
     return { ...fallback, markdown: buildMarkdown(fallback) };
   }
 
-  let highlightedPapers = buildHighlightedPapers(
-    latestBriefing.id,
-    briefingItems,
-    papers,
-    scores,
-    themes,
-  );
+  let highlightedPapers = buildHighlightedPapers(latestBriefing.id, briefingItems, papers, scores, themes);
   if (highlightedPapers.length === 0) {
     highlightedPapers = buildHighlightedPapersFallback(papers, scores, themes);
   }

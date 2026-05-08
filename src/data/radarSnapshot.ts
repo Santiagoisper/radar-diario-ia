@@ -30,6 +30,12 @@ export function getLatestRadarState(date: string = DEFAULT_RADAR_DATE): RadarWor
   return runDailyRadarWorkflow(date);
 }
 
+/** Construye RadarAppData desde un resultado de workflow (sin caché). Útil en API. */
+export function toRadarAppData(workflow: RadarWorkflowResult, date: string): RadarAppData {
+  const { briefings, briefingItems } = mergeBriefingsAndItems(workflow);
+  return { workflow, briefings, briefingItems, radarDate: date };
+}
+
 export function mergeBriefingsAndItems(result: RadarWorkflowResult): {
   briefings: DailyBriefing[];
   briefingItems: DailyBriefingItem[];
@@ -53,8 +59,7 @@ export function getRadarAppData(date: string = DEFAULT_RADAR_DATE): RadarAppData
   }
 
   const workflow = runDailyRadarWorkflow(date);
-  const { briefings, briefingItems } = mergeBriefingsAndItems(workflow);
-  const data: RadarAppData = { workflow, briefings, briefingItems, radarDate: date };
+  const data = toRadarAppData(workflow, date);
   cache = { date, data };
   return data;
 }

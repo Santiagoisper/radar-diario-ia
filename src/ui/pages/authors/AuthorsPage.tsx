@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useRadarAppData } from "../../../hooks/useRadarAppData";
+import { PageError, PageSkeleton } from "../../components/RadarStatus";
 import {
   buildAuthorDetail,
   buildAuthorsListView,
@@ -8,11 +10,30 @@ import {
 } from "./authorsViewModel";
 
 export function AuthorsPage() {
-  const authors = useMemo(() => buildAuthorsListView(), []);
-  const [selectedAuthorId, setSelectedAuthorId] = useState<string>(authors[0]?.id ?? "");
+  const { data, isPending, isError, error, refetch } = useRadarAppData();
+  const [selectedAuthorId, setSelectedAuthorId] = useState<string | null>(null);
 
-  const detail = buildAuthorDetail(selectedAuthorId);
-  const todayActivity = getAuthorsActivityToday();
+  const authors = useMemo(() => (data ? buildAuthorsListView(data) : []), [data]);
+
+  const effectiveAuthorId = useMemo(() => {
+    if (authors.length === 0) return null;
+    if (selectedAuthorId && authors.some((a) => a.id === selectedAuthorId)) {
+      return selectedAuthorId;
+    }
+    return authors[0].id;
+  }, [authors, selectedAuthorId]);
+
+  const detail = data && effectiveAuthorId ? buildAuthorDetail(effectiveAuthorId, data) : null;
+  const todayActivity = data
+    ? getAuthorsActivityToday(data)
+    : { activeTodayCount: 0, activeTodayIds: new Set<string>() };
+
+  if (isPending) {
+    return <PageSkeleton title="Autores" />;
+  }
+  if (isError) {
+    return <PageError message={error.message} onRetry={() => void refetch()} />;
+  }
 
   return (
     <div className="page">
@@ -32,15 +53,21 @@ export function AuthorsPage() {
               <li key={author.id} className="author-item">
                 <button
                   type="button"
-                  className={`author-select${selectedAuthorId === author.id ? " author-select-active" : ""}`}
+                  className={`author-select${effectiveAuthorId === author.id ? " author-select-active" : ""}`}
                   onClick={() => setSelectedAuthorId(author.id)}
                 >
                   <span className="item-title">{author.displayName}</span>
-                  <span className="muted">Prioridad: {author.priority} · {author.active ? "activo" : "inactivo"}</span>
-                  <span className="muted">Última aparición: {formatAppearanceDate(author.lastAppearance)}</span>
+                  <span className="muted">
+                    Prioridad: {author.priority} · {author.active ? "activo" : "inactivo"}
+                  </span>
+                  <span className="muted">
+                    Última aparición: {formatAppearanceDate(author.lastAppearance)}
+                  </span>
                   <span className="muted">Papers asociados: {author.linkedPapersCount}</span>
                   <span className="muted">
-                    Temas: {author.topThemes.map((theme) => `${theme.theme} (${theme.count})`).join(", ") || "sin señal"}
+                    Temas:{" "}
+                    {author.topThemes.map((theme) => `${theme.theme} (${theme.count})`).join(", ") ||
+                      "sin señal"}
                   </span>
                 </button>
               </li>
@@ -53,7 +80,9 @@ export function AuthorsPage() {
             <>
               <h3>{detail.displayName}</h3>
               <p className="muted">Aliases: {detail.aliases.join(", ") || "—"}</p>
-              <p className="muted">Prioridad: {detail.priority} · estado: {detail.active ? "activo" : "inactivo"}</p>
+              <p className="muted">
+                Prioridad: {detail.priority} · estado: {detail.active ? "activo" : "inactivo"}
+              </p>
               <p className="muted">Notas: {detail.notes}</p>
               <p className="muted">Última aparición: {formatAppearanceDate(detail.lastAppearance)}</p>
 

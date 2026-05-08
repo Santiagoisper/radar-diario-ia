@@ -1,8 +1,19 @@
 import { Link } from "react-router-dom";
+import { useRadarAppData } from "../../../hooks/useRadarAppData";
+import { PageError, PageSkeleton } from "../../components/RadarStatus";
 import { buildHomeViewModel } from "./homeMetrics";
 
 export function HomePage() {
-  const view = buildHomeViewModel();
+  const { data, isPending, isError, error, refetch } = useRadarAppData();
+
+  if (isPending) {
+    return <PageSkeleton title="Home" />;
+  }
+  if (isError) {
+    return <PageError message={error.message} onRetry={() => void refetch()} />;
+  }
+
+  const view = buildHomeViewModel(data);
 
   return (
     <div className="page">

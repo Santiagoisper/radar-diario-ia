@@ -20,10 +20,7 @@ function computeConfidence(hits: number, keywordPoolSize: number): number {
  * Clasifica temas por keywords de configuración (title + abstract + categories).
  * Permite múltiples temas por paper.
  */
-export function classifyThemes(
-  paper: Paper,
-  keywordsByTheme: Record<string, string[]>,
-): PaperTheme[] {
+export function classifyThemes(paper: Paper, keywordsByTheme: Record<string, string[]>): PaperTheme[] {
   const textUniverse = `${paper.title} ${paper.abstract} ${paper.categories.join(" ")}`;
 
   const themes = Object.entries(keywordsByTheme)

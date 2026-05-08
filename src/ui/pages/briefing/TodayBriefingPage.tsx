@@ -1,7 +1,18 @@
+import { useRadarAppData } from "../../../hooks/useRadarAppData";
+import { PageError, PageSkeleton } from "../../components/RadarStatus";
 import { buildBriefingTodayViewModel } from "./briefingViewModel";
 
 export function TodayBriefingPage() {
-  const briefing = buildBriefingTodayViewModel();
+  const { data, isPending, isError, error, refetch } = useRadarAppData();
+
+  if (isPending) {
+    return <PageSkeleton title="Briefing de hoy" />;
+  }
+  if (isError) {
+    return <PageError message={error.message} onRetry={() => void refetch()} />;
+  }
+
+  const briefing = buildBriefingTodayViewModel(data);
 
   return (
     <div className="page">

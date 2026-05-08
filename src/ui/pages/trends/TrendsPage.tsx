@@ -1,4 +1,6 @@
 import { useMemo, useState } from "react";
+import { useRadarAppData } from "../../../hooks/useRadarAppData";
+import { PageError, PageSkeleton } from "../../components/RadarStatus";
 import {
   buildTrendsFilterOptions,
   buildTrendsViewModel,
@@ -34,10 +36,7 @@ function MiniBarChart({ title, data }: { title: string; data: BarDatum[] }) {
               </span>
             </div>
             <div className="chart-track" aria-hidden="true">
-              <div
-                className="chart-fill"
-                style={{ width: `${(item.value / max) * 100}%` }}
-              />
+              <div className="chart-fill" style={{ width: `${(item.value / max) * 100}%` }} />
             </div>
           </li>
         ))}
@@ -47,9 +46,25 @@ function MiniBarChart({ title, data }: { title: string; data: BarDatum[] }) {
 }
 
 export function TrendsPage() {
+  const { data, isPending, isError, error, refetch } = useRadarAppData();
   const [filters, setFilters] = useState<TrendsFilters>(defaultFilters);
-  const options = useMemo(() => buildTrendsFilterOptions(), []);
-  const view = useMemo(() => buildTrendsViewModel(filters), [filters]);
+
+  const options = useMemo(
+    () => (data ? buildTrendsFilterOptions(data) : { themes: [], authors: [], categories: [] }),
+    [data],
+  );
+
+  const view = useMemo(() => (data ? buildTrendsViewModel(filters, data) : null), [data, filters]);
+
+  if (isPending) {
+    return <PageSkeleton title="Tendencias" />;
+  }
+  if (isError) {
+    return <PageError message={error.message} onRetry={() => void refetch()} />;
+  }
+  if (!view) {
+    return <PageError message="Sin datos de tendencias." onRetry={() => void refetch()} />;
+  }
 
   return (
     <div className="page">
@@ -82,9 +97,7 @@ export function TrendsPage() {
             Tema
             <select
               value={filters.theme}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, theme: event.target.value }))
-              }
+              onChange={(event) => setFilters((current) => ({ ...current, theme: event.target.value }))}
             >
               <option value="all">Todos</option>
               {options.themes.map((theme) => (
@@ -99,9 +112,7 @@ export function TrendsPage() {
             Autor
             <select
               value={filters.author}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, author: event.target.value }))
-              }
+              onChange={(event) => setFilters((current) => ({ ...current, author: event.target.value }))}
             >
               <option value="all">Todos</option>
               {options.authors.map((author) => (
@@ -116,9 +127,7 @@ export function TrendsPage() {
             Categoría
             <select
               value={filters.category}
-              onChange={(event) =>
-                setFilters((current) => ({ ...current, category: event.target.value }))
-              }
+              onChange={(event) => setFilters((current) => ({ ...current, category: event.target.value }))}
             >
               <option value="all">Todas</option>
               {options.categories.map((category) => (

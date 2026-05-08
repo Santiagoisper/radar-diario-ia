@@ -69,9 +69,7 @@ export function SettingsPage() {
       {activeSection === "sources" && (
         <section className="card">
           <h3>Fuentes activas</h3>
-          <p className="muted">
-            Definí qué fuentes entran al radar y con qué frecuencia se consultan.
-          </p>
+          <p className="muted">Definí qué fuentes entran al radar y con qué frecuencia se consultan.</p>
           <div className="table-wrap">
             <table className="simple-table">
               <caption className="sr-only">
@@ -146,9 +144,7 @@ export function SettingsPage() {
       {activeSection === "authors" && (
         <section className="card">
           <h3>Autores observados</h3>
-          <p className="muted">
-            Ajustá prioridad y notas para calibrar qué autores pesan más en tu radar.
-          </p>
+          <p className="muted">Ajustá prioridad y notas para calibrar qué autores pesan más en tu radar.</p>
           <ul className="list-clean settings-authors-list">
             {settings.authors.map((author) => (
               <li key={author.id} className="settings-author-item">
@@ -233,9 +229,7 @@ export function SettingsPage() {
       {activeSection === "keywords" && (
         <section className="card">
           <h3>Keywords por tema</h3>
-          <p className="muted">
-            Estas keywords alimentarán la clasificación temática del motor lógico.
-          </p>
+          <p className="muted">Estas keywords alimentarán la clasificación temática del motor lógico.</p>
           <ul className="list-clean settings-keywords-list">
             {Object.entries(settings.keywordsByTheme).map(([theme, keywords]) => (
               <li key={theme} className="settings-keyword-item">
@@ -295,9 +289,7 @@ export function SettingsPage() {
       {activeSection === "weights" && (
         <section className="card">
           <h3>Pesos del scoring</h3>
-          <p className="muted">
-            Los pesos definen cómo se compone el score total de relevancia.
-          </p>
+          <p className="muted">Los pesos definen cómo se compone el score total de relevancia.</p>
           <div className="settings-weights-grid">
             {weightMeta.map((item) => {
               const value = settings.weights[item.key];
@@ -313,11 +305,7 @@ export function SettingsPage() {
                     onChange={(event) =>
                       setSettings((current) => ({
                         ...current,
-                        weights: updateWeight(
-                          current.weights,
-                          item.key,
-                          Number(event.target.value),
-                        ),
+                        weights: updateWeight(current.weights, item.key, Number(event.target.value)),
                       }))
                     }
                   />

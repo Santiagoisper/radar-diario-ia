@@ -30,7 +30,25 @@ export const dailyBriefingsSeed: DailyBriefing[] = [
 ];
 
 export const dailyBriefingItemsSeed: DailyBriefingItem[] = [
-  { id: "bi-1", briefing_id: "brief-2026-05-05", paper_id: "paper-1", rank: 1, inclusion_reason: "Alta señal en agentes verificables." },
-  { id: "bi-2", briefing_id: "brief-2026-05-05", paper_id: "paper-2", rank: 2, inclusion_reason: "Memoria estratégica para continuidad de tareas." },
-  { id: "bi-3", briefing_id: "brief-2026-05-05", paper_id: "paper-3", rank: 3, inclusion_reason: "Marco de evaluación para control y gobernanza." },
+  {
+    id: "bi-1",
+    briefing_id: "brief-2026-05-05",
+    paper_id: "paper-1",
+    rank: 1,
+    inclusion_reason: "Alta señal en agentes verificables.",
+  },
+  {
+    id: "bi-2",
+    briefing_id: "brief-2026-05-05",
+    paper_id: "paper-2",
+    rank: 2,
+    inclusion_reason: "Memoria estratégica para continuidad de tareas.",
+  },
+  {
+    id: "bi-3",
+    briefing_id: "brief-2026-05-05",
+    paper_id: "paper-3",
+    rank: 3,
+    inclusion_reason: "Marco de evaluación para control y gobernanza.",
+  },
 ];
