@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { waitUntil } from "@vercel/functions";
 import { z } from "zod";
 import { loadOrBuildRadarAppData } from "../lib/buildRadarSnapshot.js";
 import { logApi } from "../lib/logger.js";
@@ -73,18 +74,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     date = parsed.data.date ?? new Date().toISOString().slice(0, 10);
     mode = parsed.data.source;
   }
-  const t0 = Date.now();
 
-  try {
-    logApi("info", "cron_run_start", { date, mode });
-    const data = await loadOrBuildRadarAppData(date, mode, { persist: true, useCache: false });
-    logApi("info", "cron_run_ok", { date, mode, ms: Date.now() - t0 });
-    res.status(200).json({ ok: true, radarDate: data.radarDate, mode });
-  } catch (e) {
-    logApi("error", "cron_run_fail", { message: e instanceof Error ? e.message : String(e) });
-    res.status(500).json({
-      error: "run_failed",
-      message: e instanceof Error ? e.message : String(e),
-    });
-  }
+  logApi("info", "cron_run_start", { date, mode });
+
+  // Responder 202 inmediatamente para no superar el límite de 10s de Vercel Hobby.
+  // waitUntil extiende la ejecución hasta 15 minutos en background.
+  res.status(202).json({ ok: true, status: "accepted", date, mode });
+
+  waitUntil(
+    (async () => {
+      const t0 = Date.now();
+      try {
+        const data = await loadOrBuildRadarAppData(date, mode, { persist: true, useCache: false });
+        logApi("info", "cron_run_ok", { date, mode, ms: Date.now() - t0, radarDate: data.radarDate });
+      } catch (e) {
+        logApi("error", "cron_run_fail", {
+          date,
+          mode,
+          ms: Date.now() - t0,
+          message: e instanceof Error ? e.message : String(e),
+        });
+      }
+    })()
+  );
 }
