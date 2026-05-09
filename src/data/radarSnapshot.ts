@@ -8,8 +8,8 @@ import { runDailyRadarWorkflow } from "../domain/services/radar/runDailyRadarWor
 import type { RadarWorkflowResult } from "../domain/services/radar/types";
 import { dailyBriefingItemsSeed, dailyBriefingsSeed, papersSeed } from "./seeds";
 
-/** Fecha mock “hoy” alineada con el workflow y las semillas históricas. */
-export const DEFAULT_RADAR_DATE = "2026-05-05";
+/** Fecha "hoy" en UTC — se recalcula en cada módulo load, nunca hardcodeada. */
+export const DEFAULT_RADAR_DATE = new Date().toISOString().slice(0, 10);
 
 export interface RadarAppData {
   workflow: RadarWorkflowResult;

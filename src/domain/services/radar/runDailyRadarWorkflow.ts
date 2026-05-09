@@ -41,7 +41,7 @@ export function buildDefaultConfig(): RadarWorkflowConfig {
  * Orquestador del workflow diario (ingesta mock síncrona).
  */
 export function runDailyRadarWorkflow(
-  date = "2026-05-05",
+  date = new Date().toISOString().slice(0, 10),
   config: RadarWorkflowConfig = buildDefaultConfig(),
 ): RadarWorkflowResult {
   const logs: string[] = [];
