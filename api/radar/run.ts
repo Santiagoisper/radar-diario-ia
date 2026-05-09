@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
-import { loadOrBuildRadarAppData } from "../lib/buildRadarSnapshot";
-import { logApi } from "../lib/logger";
+import { loadOrBuildRadarAppData } from "../lib/buildRadarSnapshot.js";
+import { logApi } from "../lib/logger.js";
 
 const BodySchema = z.object({
   date: z

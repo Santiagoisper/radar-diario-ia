@@ -1,15 +1,15 @@
 import { and, desc, eq } from "drizzle-orm";
-import type { RadarAppData } from "../../src/data/radarSnapshot";
-import { toRadarAppData } from "../../src/data/radarSnapshot";
+import type { RadarAppData } from "../../src/data/radarSnapshot.js";
+import { toRadarAppData } from "../../src/data/radarSnapshot.js";
 import {
   runDailyRadarWorkflow,
   buildDefaultConfig,
-} from "../../src/domain/services/radar/runDailyRadarWorkflow";
-import { runDailyRadarWorkflowAsync } from "../../src/domain/services/radar/runDailyRadarWorkflowAsync";
-import { getDb } from "../../src/db";
-import { radarSnapshots } from "../../src/db/schema";
-import { ingestArxivForSources } from "../../src/server/arxiv/ingestArxiv";
-import { enrichPapers } from "../../src/server/llm/enrichPapers";
+} from "../../src/domain/services/radar/runDailyRadarWorkflow.js";
+import { runDailyRadarWorkflowAsync } from "../../src/domain/services/radar/runDailyRadarWorkflowAsync.js";
+import { getDb } from "../../src/db/index.js";
+import { radarSnapshots } from "../../src/db/schema.js";
+import { ingestArxivForSources } from "../../src/server/arxiv/ingestArxiv.js";
+import { enrichPapers } from "../../src/server/llm/enrichPapers.js";
 
 /**
  * Solo lectura: SELECT en radar_snapshots. Sin workflow, sin red, sin INSERT/UPDATE.
