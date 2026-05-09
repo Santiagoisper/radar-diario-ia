@@ -2,16 +2,18 @@
   "compilerOptions": {
     "target": "es2022",
     "lib": ["ES2022"],
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true,
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "verbatimModuleSyntax": false,
     "moduleDetection": "force",
-    "noEmit": true,
+    "noEmit": false,
+    "outDir": "../dist-api",
     "strict": true,
     "skipLibCheck": true,
     "types": ["node"]
   },
   "include": ["./**/*.ts", "../src/**/*.ts"],
-  "exclude": ["../node_modules"]
+  "exclude": ["../node_modules", "../**/*.test.ts", "../**/*.spec.ts"]
 }
