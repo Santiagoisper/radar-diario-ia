@@ -69,6 +69,7 @@ export function executeRadarPipelineFromPayloads(
     briefing,
     briefingItems,
     trendSnapshot,
+    enrichments: [],
     logs,
   };
 }

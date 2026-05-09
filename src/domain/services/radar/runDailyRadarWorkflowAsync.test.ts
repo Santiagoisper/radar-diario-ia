@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import type { Source } from "../../models";
-import type { IngestedPaperPayload } from "./types";
+import type { IngestedPaperPayload, PaperEnrichmentResult } from "./types";
 import { runDailyRadarWorkflowAsync, buildDefaultConfig } from "./runDailyRadarWorkflowAsync";
 
 function makePayload(n: number): IngestedPaperPayload {
@@ -57,5 +57,40 @@ describe("runDailyRadarWorkflowAsync", () => {
     await expect(runDailyRadarWorkflowAsync("2024-01-15", config, ingest)).rejects.toThrow(
       "arxiv HTTP 503",
     );
+  });
+
+  it("incluye enrichments cuando se inyecta función de enriquecimiento", async () => {
+    const payloads = [makePayload(1), makePayload(2)];
+    const ingest = vi.fn().mockResolvedValue(payloads);
+    const mockEnrichment: PaperEnrichmentResult[] = [
+      {
+        paper_id: "paper-arxiv-2401-00001",
+        summary_es: "Resumen del paper 1.",
+        semantic_tags: ["LLMs", "razonamiento"],
+        novelty_signal: "notable",
+      },
+    ];
+    const enrich = vi.fn().mockResolvedValue(mockEnrichment);
+    const config = buildDefaultConfig();
+
+    const result = await runDailyRadarWorkflowAsync("2024-01-15", config, ingest, enrich);
+
+    expect(enrich).toHaveBeenCalledOnce();
+    expect(result.enrichments).toHaveLength(1);
+    expect(result.enrichments[0].novelty_signal).toBe("notable");
+    expect(result.logs.some((l) => l.includes("enrichPapers:"))).toBe(true);
+  });
+
+  it("no lanza si enrich falla — registra el error en logs y sigue", async () => {
+    const payloads = [makePayload(1)];
+    const ingest = vi.fn().mockResolvedValue(payloads);
+    const enrich = vi.fn().mockRejectedValue(new Error("OpenAI timeout"));
+    const config = buildDefaultConfig();
+
+    const result = await runDailyRadarWorkflowAsync("2024-01-15", config, ingest, enrich);
+
+    expect(result.enrichments).toHaveLength(0);
+    expect(result.logs.some((l) => l.includes("OpenAI timeout"))).toBe(true);
+    expect(result.papers.length).toBeGreaterThan(0); // pipeline no se interrumpe
   });
 });

@@ -9,6 +9,7 @@ import { runDailyRadarWorkflowAsync } from "../../src/domain/services/radar/runD
 import { getDb } from "../../src/db";
 import { radarSnapshots } from "../../src/db/schema";
 import { ingestArxivForSources } from "../../src/server/arxiv/ingestArxiv";
+import { enrichPapers } from "../../src/server/llm/enrichPapers";
 
 /**
  * Solo lectura: SELECT en radar_snapshots. Sin workflow, sin red, sin INSERT/UPDATE.
@@ -72,7 +73,7 @@ export async function loadOrBuildRadarAppData(
     data = toRadarAppData(workflow, date);
   } else {
     const config = buildDefaultConfig();
-    const workflow = await runDailyRadarWorkflowAsync(date, config, ingestArxivForSources);
+    const workflow = await runDailyRadarWorkflowAsync(date, config, ingestArxivForSources, enrichPapers);
     data = toRadarAppData(workflow, date);
   }
 

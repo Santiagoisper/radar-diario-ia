@@ -44,6 +44,13 @@ export interface BriefingBuildResult {
   briefingItems: DailyBriefingItem[];
 }
 
+export interface PaperEnrichmentResult {
+  paper_id: string;
+  summary_es: string;
+  semantic_tags: string[];
+  novelty_signal: "incremental" | "notable" | "breakthrough";
+}
+
 export interface RadarWorkflowResult {
   papers: Paper[];
   themes: PaperTheme[];
@@ -51,6 +58,8 @@ export interface RadarWorkflowResult {
   briefing: DailyBriefing;
   briefingItems: DailyBriefingItem[];
   trendSnapshot: TrendSnapshot;
+  /** Enriquecimiento LLM por paper. Vacío si OPENAI_API_KEY no está configurada. */
+  enrichments: PaperEnrichmentResult[];
   logs: string[];
 }
 
