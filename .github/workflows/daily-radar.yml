@@ -1,0 +1,72 @@
+name: Radar Diario IA
+
+on:
+  schedule:
+    # 06:00 UTC todos los días
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Fecha a procesar (YYYY-MM-DD). Vacío = hoy UTC"
+        required: false
+        default: ""
+      categories:
+        description: "Categorías arXiv separadas por coma"
+        required: false
+        default: "cs.AI,cs.LG,cs.CL"
+      max_results:
+        description: "Número de papers a ingestar"
+        required: false
+        default: "25"
+
+jobs:
+  ingest:
+    name: Ingestar arXiv y enviar a Vercel
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Ejecutar ingest-and-push
+        env:
+          VERCEL_URL: ${{ secrets.VERCEL_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          ARXIV_CATEGORIES: ${{ github.event.inputs.categories || 'cs.AI,cs.LG,cs.CL' }}
+          ARXIV_MAX_RESULTS: ${{ github.event.inputs.max_results || '25' }}
+          RADAR_DATE: ${{ github.event.inputs.date || '' }}
+        run: node scripts/ingest-and-push.mjs
+
+      - name: Verificar snapshot persistido
+        env:
+          VERCEL_URL: ${{ secrets.VERCEL_URL }}
+        run: |
+          DATE="${{ github.event.inputs.date || '' }}"
+          if [ -z "$DATE" ]; then
+            DATE=$(date -u +%Y-%m-%d)
+          fi
+          echo "Verificando snapshot para $DATE..."
+          for i in $(seq 1 18); do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "${{ secrets.VERCEL_URL }}/api/radar/snapshot?date=${DATE}&source=live")
+            echo "  Intento $i/18 → HTTP $STATUS"
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Snapshot disponible"
+              curl -s "${{ secrets.VERCEL_URL }}/api/radar/snapshot?date=${DATE}&source=live" | \
+                python3 -c "import sys,json; d=json.load(sys.stdin); print(f'  Papers: {len(d.get(\"papers\",[]))}, radarDate: {d.get(\"radarDate\",\"?\")}')"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "⚠️  Snapshot no disponible después de 3 minutos"
+          exit 0
