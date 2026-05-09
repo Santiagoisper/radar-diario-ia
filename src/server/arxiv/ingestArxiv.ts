@@ -6,6 +6,9 @@ const ARXIV_API = "https://export.arxiv.org/api/query";
 let lastFetchAt = 0;
 const MIN_INTERVAL_MS = 3500;
 
+/** Número de resultados a pedir a arXiv por request. Configurable vía env para tests o ajuste fino. */
+const MAX_RESULTS = Number(process.env.ARXIV_MAX_RESULTS ?? 25);
+
 async function sleep(ms: number) {
   await new Promise((r) => setTimeout(r, ms));
 }
@@ -48,6 +51,7 @@ function categoryQueryPart(category: string): string {
 /**
  * Ingesta arXiv API para fuentes activas tipo arxiv_category.
  * Solo debe ejecutarse en servidor (Node/Vercel).
+ * Retorna [] si no hay categorías activas; lanza en caso de error de red irrecuperable.
  */
 export async function ingestArxivForSources(activeSources: Source[]): Promise<IngestedPaperPayload[]> {
   const categories = new Set<string>();
@@ -59,10 +63,18 @@ export async function ingestArxivForSources(activeSources: Source[]): Promise<In
   if (categories.size === 0) return [];
 
   const orQuery = [...categories].map(categoryQueryPart).join("+OR+");
-  const url = `${ARXIV_API}?search_query=${encodeURIComponent(`(${orQuery})`)}&start=0&max_results=25&sortBy=submittedDate&sortOrder=descending`;
+  const url = `${ARXIV_API}?search_query=${encodeURIComponent(`(${orQuery})`)}&start=0&max_results=${MAX_RESULTS}&sortBy=submittedDate&sortOrder=descending`;
   const res = await fetchWithRetry(url);
   const xml = await res.text();
-  return parseArxivFeedXml(xml, activeSources, categories);
+  const payloads = parseArxivFeedXml(xml, activeSources, categories);
+
+  if (payloads.length === 0) {
+    // arXiv devolvió feed válido pero sin entradas (categoría vacía o sin papers recientes).
+    // No es un error: el pipeline lo maneja con fallback a seeds.
+    console.warn(`[ingestArxiv] feed vacío para categorías: ${[...categories].join(", ")}`);
+  }
+
+  return payloads;
 }
 
 /** Parsea el Atom de la API arXiv a payloads (sin red). Expuesto para tests unitarios. */

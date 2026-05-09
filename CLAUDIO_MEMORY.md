@@ -1,6 +1,6 @@
 # Memoria de Claudio — Radar Diario de IA
 
-Fecha de actualización: 2026-05-05
+Fecha de actualización: 2026-05-08
 
 ## Estado general
 
@@ -58,5 +58,6 @@ Incluye:
 
 ## Nota operativa
 
-Todavía NO hay integración real con arXiv ni LLM (por diseño de esta fase).
-El pipeline está listo para conectar adapters reales sin rehacer arquitectura.
+El conector arXiv real (`ingestArxivForSources`) está operativo y conectado al workflow `live`.
+El cron diario (06:00 UTC) llama a `/api/radar/run?source=live` que usa el conector real.
+Pendiente: integración LLM para resúmenes o clasificación de papers.

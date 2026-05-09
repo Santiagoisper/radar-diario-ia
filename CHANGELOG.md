@@ -2,6 +2,14 @@
 
 Este proyecto sigue [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y versionado semántico aproximado.
 
+## [Unreleased]
+
+### Añadido
+
+- `ingestArxivForSources`: `MAX_RESULTS` configurable vía `ARXIV_MAX_RESULTS` (default 25); warning en log cuando el feed arXiv devuelve 0 entradas (feed vacío no es error, el pipeline usa fallback a seeds).
+- Test de integración `runDailyRadarWorkflowAsync.test.ts`: verifica pipeline completo con payloads inyectados, ingesta vacía (fallback a seeds) y propagación de errores de red.
+- Tests adicionales en `ingestArxiv.test.ts`: feed vacío, múltiples autores, resolución de `source_id` con múltiples fuentes activas.
+
 ## [0.1.0] - 2026-05-08
 
 ### Añadido
