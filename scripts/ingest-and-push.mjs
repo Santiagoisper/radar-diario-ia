@@ -18,12 +18,22 @@ import { XMLParser } from "fast-xml-parser";
 const ARXIV_API = "https://export.arxiv.org/api/query";
 const VERCEL_URL = process.env.VERCEL_URL?.replace(/\/$/, "") ?? "https://radar-diario-ia.vercel.app";
 const CRON_SECRET = process.env.CRON_SECRET;
-const CATEGORIES = (process.env.ARXIV_CATEGORIES ?? "cs.AI,cs.LG,cs.CL").split(",").map((c) => c.trim()).filter(Boolean);
+const CATEGORIES = (process.env.ARXIV_CATEGORIES ?? "cs.AI,cs.LG,cs.CL")
+  .split(",")
+  .map((c) => c.trim())
+  .filter(Boolean);
 const MAX_RESULTS = Number(process.env.ARXIV_MAX_RESULTS ?? 25);
-const TODAY = new Date().toISOString().slice(0, 10);
+const RUN_DATE = process.env.RADAR_DATE?.trim() || new Date().toISOString().slice(0, 10);
+const ARXIV_ATTEMPTS = Number(process.env.ARXIV_ATTEMPTS ?? 5);
+const USER_AGENT = "radar-diario-ia/0.1 (https://github.com/Santiagoisper/radar-diario-ia)";
 
 if (!CRON_SECRET) {
   console.error("❌ CRON_SECRET no está configurado");
+  process.exit(1);
+}
+
+if (!Number.isFinite(MAX_RESULTS) || MAX_RESULTS < 1) {
+  console.error(`❌ ARXIV_MAX_RESULTS inválido: ${process.env.ARXIV_MAX_RESULTS}`);
   process.exit(1);
 }
 
@@ -31,33 +41,78 @@ async function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function buildArxivUrl(categories, maxResults) {
+  const search = `(${categories.map((c) => `cat:${c}`).join(" OR ")})`;
+  const params = new URLSearchParams({
+    search_query: search,
+    start: "0",
+    max_results: String(maxResults),
+    sortBy: "submittedDate",
+    sortOrder: "descending",
+  });
+
+  return `${ARXIV_API}?${params.toString()}`;
+}
+
+function retryDelayMs(response, attempt) {
+  const retryAfter = response?.headers?.get("Retry-After");
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    if (Number.isFinite(seconds)) return Math.max(seconds * 1000, 1000);
+
+    const retryAt = Date.parse(retryAfter);
+    if (Number.isFinite(retryAt)) return Math.max(retryAt - Date.now(), 1000);
+  }
+
+  if (response?.status === 429) {
+    return Math.min(15_000 * 2 ** (attempt - 1), 180_000);
+  }
+
+  return Math.min(2_000 * 2 ** (attempt - 1), 30_000);
+}
+
 async function fetchArxiv(categories, maxResults) {
-  const orQuery = categories.map((c) => `cat:${c}`).join("+OR+");
-  const url = `${ARXIV_API}?search_query=${encodeURIComponent(`(${orQuery})`)}&start=0&max_results=${maxResults}&sortBy=submittedDate&sortOrder=descending`;
+  const url = buildArxivUrl(categories, maxResults);
 
   console.log(`📡 Consultando arXiv: ${categories.join(", ")} (max ${maxResults})`);
   console.log(`   URL: ${url}`);
 
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  let lastError = null;
+  for (let attempt = 1; attempt <= ARXIV_ATTEMPTS; attempt++) {
+    let res = null;
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 30_000);
-      const res = await fetch(url, { signal: ctrl.signal });
+      res = await fetch(url, {
+        signal: ctrl.signal,
+        headers: { "User-Agent": USER_AGENT },
+      });
       clearTimeout(t);
 
       if (!res.ok) {
-        throw new Error(`arXiv HTTP ${res.status}`);
+        const body = await res.text().catch(() => "");
+        throw new Error(`arXiv HTTP ${res.status}${body ? `: ${body.slice(0, 160)}` : ""}`);
       }
 
       const xml = await res.text();
       console.log(`✅ arXiv respondió (${xml.length} bytes)`);
       return xml;
     } catch (e) {
-      console.warn(`⚠️  Intento ${attempt}/3 falló: ${e.message}`);
-      if (attempt < 3) await sleep(2 ** attempt * 1000);
+      lastError = e instanceof Error ? e : new Error(String(e));
+      console.warn(`⚠️  Intento ${attempt}/${ARXIV_ATTEMPTS} falló: ${lastError.message}`);
+      if (attempt < ARXIV_ATTEMPTS) {
+        const waitMs = retryDelayMs(res, attempt);
+        console.warn(`   Reintentando en ${Math.round(waitMs / 1000)}s...`);
+        await sleep(waitMs);
+      }
     }
   }
-  throw new Error("arXiv no respondió después de 3 intentos");
+
+  throw lastError ?? new Error("arXiv no respondió");
+}
+
+function sourceIdForCategory(category) {
+  return `source-arxiv-${category.toLowerCase().replace(".", "-")}`;
 }
 
 function parseArxivXml(xml, categories) {
@@ -81,23 +136,30 @@ function parseArxivXml(xml, categories) {
     const id = String(entry.id ?? "").trim();
     const externalId = id.split("/abs/").pop() ?? id;
 
-    const authors = (entry.author ?? []).map((a) =>
-      typeof a === "string" ? a : String(a.name ?? "")
-    ).filter(Boolean);
+    const authors = (entry.author ?? [])
+      .map((a) => (typeof a === "string" ? a : String(a.name ?? "")))
+      .filter(Boolean);
 
-    const entryCategories = (entry.category ?? []).map((c) =>
-      typeof c === "string" ? c : String(c["@_term"] ?? "")
-    ).filter(Boolean);
+    const entryCategories = (entry.category ?? [])
+      .map((c) => (typeof c === "string" ? c : String(c["@_term"] ?? "")))
+      .filter(Boolean);
 
     // Determinar source_id según la primera categoría que matchea
     const matchedCategory = entryCategories.find((c) => categorySet.has(c)) ?? entryCategories[0] ?? "arxiv";
-    const sourceId = `arxiv_${matchedCategory.replace(".", "_")}`;
+    const sourceId = sourceIdForCategory(matchedCategory);
+    const externalIdWithoutVersion = externalId.replace(/v\d+$/i, "");
 
     return {
       source_id: sourceId,
-      external_id: externalId,
-      title: String(entry.title ?? "").replace(/\s+/g, " ").trim(),
-      abstract: String(entry.summary ?? "").replace(/\s+/g, " ").trim(),
+      external_id: externalIdWithoutVersion.startsWith("arxiv:")
+        ? externalIdWithoutVersion
+        : `arxiv:${externalIdWithoutVersion}`,
+      title: String(entry.title ?? "")
+        .replace(/\s+/g, " ")
+        .trim(),
+      abstract: String(entry.summary ?? "")
+        .replace(/\s+/g, " ")
+        .trim(),
       authors,
       published_at: String(entry.published ?? new Date().toISOString()),
       updated_at: String(entry.updated ?? new Date().toISOString()),
@@ -149,7 +211,7 @@ async function postToVercel(payloads, date) {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
-console.log(`\n🗓  Radar diario — ${TODAY}`);
+console.log(`\n🗓  Radar diario — ${RUN_DATE}`);
 console.log(`📂 Categorías: ${CATEGORIES.join(", ")}`);
 
 const xml = await fetchArxiv(CATEGORIES, MAX_RESULTS);
@@ -159,6 +221,6 @@ if (payloads.length === 0) {
   console.warn("⚠️  Sin papers — enviando igualmente para que el pipeline use seeds");
 }
 
-await postToVercel(payloads, TODAY);
+await postToVercel(payloads, RUN_DATE);
 
 console.log("\n✅ ingest-and-push completado");

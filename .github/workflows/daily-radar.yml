@@ -19,11 +19,20 @@ on:
         required: false
         default: "25"
 
+permissions:
+  contents: read
+
+concurrency:
+  group: radar-diario-ia
+  cancel-in-progress: false
+
 jobs:
   ingest:
     name: Ingestar arXiv y enviar a Vercel
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
     steps:
       - name: Checkout
@@ -55,18 +64,22 @@ jobs:
           if [ -z "$DATE" ]; then
             DATE=$(date -u +%Y-%m-%d)
           fi
+          if [ -z "${VERCEL_URL}" ]; then
+            echo "❌ VERCEL_URL no está configurado"
+            exit 1
+          fi
           echo "Verificando snapshot para $DATE..."
           for i in $(seq 1 18); do
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              "${{ secrets.VERCEL_URL }}/api/radar/snapshot?date=${DATE}&source=live")
+              "${VERCEL_URL}/api/radar/snapshot?date=${DATE}&source=live")
             echo "  Intento $i/18 → HTTP $STATUS"
             if [ "$STATUS" = "200" ]; then
               echo "✅ Snapshot disponible"
-              curl -s "${{ secrets.VERCEL_URL }}/api/radar/snapshot?date=${DATE}&source=live" | \
+              curl -s "${VERCEL_URL}/api/radar/snapshot?date=${DATE}&source=live" | \
                 python3 -c "import sys,json; d=json.load(sys.stdin); print(f'  Papers: {len(d.get(\"papers\",[]))}, radarDate: {d.get(\"radarDate\",\"?\")}')"
               exit 0
             fi
             sleep 10
           done
-          echo "⚠️  Snapshot no disponible después de 3 minutos"
-          exit 0
+          echo "❌ Snapshot no disponible después de 3 minutos"
+          exit 1
