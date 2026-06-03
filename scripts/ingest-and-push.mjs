@@ -14,6 +14,7 @@
  */
 
 import { XMLParser } from "fast-xml-parser";
+import { retryDelayMs } from "./lib/retryDelay.mjs";
 
 const ARXIV_API = "https://export.arxiv.org/api/query";
 const VERCEL_URL = process.env.VERCEL_URL?.replace(/\/$/, "") ?? "https://radar-diario-ia.vercel.app";
@@ -54,23 +55,6 @@ function buildArxivUrl(categories, maxResults) {
   return `${ARXIV_API}?${params.toString()}`;
 }
 
-function retryDelayMs(response, attempt) {
-  const retryAfter = response?.headers?.get("Retry-After");
-  if (retryAfter) {
-    const seconds = Number(retryAfter);
-    if (Number.isFinite(seconds)) return Math.max(seconds * 1000, 1000);
-
-    const retryAt = Date.parse(retryAfter);
-    if (Number.isFinite(retryAt)) return Math.max(retryAt - Date.now(), 1000);
-  }
-
-  if (response?.status === 429) {
-    return Math.min(15_000 * 2 ** (attempt - 1), 180_000);
-  }
-
-  return Math.min(2_000 * 2 ** (attempt - 1), 30_000);
-}
-
 async function fetchArxiv(categories, maxResults) {
   const url = buildArxivUrl(categories, maxResults);
 
@@ -82,7 +66,7 @@ async function fetchArxiv(categories, maxResults) {
     let res = null;
     try {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 30_000);
+      const t = setTimeout(() => ctrl.abort(), 60_000);
       res = await fetch(url, {
         signal: ctrl.signal,
         headers: { "User-Agent": USER_AGENT },
