@@ -1,6 +1,6 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { z } from "zod";
-import { loadRadarSnapshotReadOnly } from "../lib/buildRadarSnapshot.js";
+import { loadRadarSnapshotReadOnlyWithMeta, makeEmptyMeta } from "../lib/buildRadarSnapshot.js";
 import { logApi } from "../lib/logger.js";
 
 const QuerySchema = z.object({
@@ -43,24 +43,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     logApi("info", "snapshot_start", { date, mode, readOnly: true });
-    const data = await loadRadarSnapshotReadOnly(date, mode);
+    const { data, meta } = await loadRadarSnapshotReadOnlyWithMeta(date, mode);
     if (!data) {
       logApi("info", "snapshot_not_found", { date, mode, ms: Date.now() - t0 });
       res.status(404).json({
         error: "not_found",
         message: "No hay snapshot persistido para la fecha y modo pedidos (ni fallback reciente).",
-        date,
-        mode,
+        _meta: makeEmptyMeta(date, mode),
       });
       return;
     }
-    logApi("info", "snapshot_ok", { date, mode, ms: Date.now() - t0 });
-    res.status(200).json(data);
+    logApi("info", "snapshot_ok", {
+      date,
+      mode,
+      fallback: meta.fallback,
+      stale: meta.stale,
+      ms: Date.now() - t0,
+    });
+    res.status(200).json({ ...data, _meta: meta });
   } catch (e) {
     logApi("error", "snapshot_fail", { message: e instanceof Error ? e.message : String(e) });
     res.status(500).json({
       error: "snapshot_failed",
       message: e instanceof Error ? e.message : String(e),
+      _meta: makeEmptyMeta(date, mode),
     });
   }
 }

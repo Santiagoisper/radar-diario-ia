@@ -22,6 +22,7 @@ import {
 import { executeRadarPipelineFromPayloads } from "../../src/domain/services/radar/executeRadarPipeline.js";
 import { toRadarAppData } from "../../src/data/radarSnapshot.js";
 import type { RadarAppData } from "../../src/data/radarSnapshot.js";
+import { enrichPapers } from "../../src/server/llm/enrichPapers.js";
 import { logApi } from "../lib/logger.js";
 
 const PaperPayloadSchema = z.object({
@@ -116,7 +117,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   logApi("info", "ingest_start", { date, mode, payloads_count: payloads.length });
 
-  // Responder 202 inmediatamente — el pipeline corre en background con waitUntil
+  // Build deterministic base workflow synchronously before returning 202.
+  // executeRadarPipelineFromPayloads is CPU-only — no I/O, no network.
+  const config = buildDefaultConfig();
+  let baseData: RadarAppData;
+  if (mode === "mock") {
+    const workflow = runDailyRadarWorkflow(date);
+    baseData = toRadarAppData(workflow, date);
+  } else {
+    const workflow = executeRadarPipelineFromPayloads(payloads, date, config);
+    baseData = toRadarAppData(workflow, date);
+  }
+
+  // Return 202 immediately — persistence and enrichment run in background.
   res.status(202).json({
     ok: true,
     status: "accepted",
@@ -125,31 +138,63 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     payloads_received: payloads.length,
   });
 
+  const t0 = Date.now();
   waitUntil(
     (async () => {
-      const t0 = Date.now();
       try {
-        let data: RadarAppData;
-
-        if (mode === "mock") {
-          // Modo mock: pipeline determinístico sin red
-          const workflow = runDailyRadarWorkflow(date);
-          data = toRadarAppData(workflow, date);
-        } else {
-          // Modo live: pipeline con payloads pre-ingresados (sin llamar a arXiv)
-          const config = buildDefaultConfig();
-          const workflow = executeRadarPipelineFromPayloads(payloads, date, config);
-          data = toRadarAppData(workflow, date);
-        }
-
-        await persistSnapshot(date, mode, data);
-
-        logApi("info", "ingest_ok", {
+        // Phase 1: Persist base snapshot (no enrichment). Fast and safe.
+        await persistSnapshot(date, mode, baseData);
+        logApi("info", "ingest_base_persisted", {
           date,
           mode,
+          papers: baseData.workflow?.papers?.length ?? 0,
           ms: Date.now() - t0,
-          papers_count: data.workflow?.papers?.length ?? 0,
         });
+
+        // Phase 2: Enrich (live mode, best-effort). Base snapshot already safe.
+        if (mode === "live" && (baseData.workflow?.papers?.length ?? 0) > 0) {
+          logApi("info", "ingest_enrich_start", {
+            date,
+            papers: baseData.workflow.papers.length,
+          });
+
+          try {
+            const enrichments = await enrichPapers(baseData.workflow.papers);
+
+            // Create enriched copy — do not mutate baseData.
+            const enrichedData: RadarAppData = {
+              ...baseData,
+              workflow: {
+                ...baseData.workflow,
+                enrichments,
+                logs: [
+                  ...baseData.workflow.logs,
+                  `enrichPapers: ${enrichments.length}/${baseData.workflow.papers.length} papers enriched`,
+                ],
+              },
+            };
+
+            await persistSnapshot(date, mode, enrichedData);
+            logApi("info", "ingest_enrich_ok", {
+              date,
+              enrichments: enrichments.length,
+              papers: baseData.workflow.papers.length,
+              ms: Date.now() - t0,
+            });
+          } catch (enrichErr) {
+            // Base snapshot already persisted — enrichment is best-effort.
+            logApi("warn", "ingest_enrich_fail", {
+              date,
+              message: enrichErr instanceof Error ? enrichErr.message : String(enrichErr),
+              ms: Date.now() - t0,
+            });
+          }
+        } else {
+          logApi("info", "ingest_enrich_skipped", {
+            date,
+            reason: mode === "mock" ? "mock_mode" : "no_papers",
+          });
+        }
       } catch (e) {
         logApi("error", "ingest_fail", {
           date,

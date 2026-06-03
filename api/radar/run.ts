@@ -1,7 +1,7 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { waitUntil } from "@vercel/functions";
 import { z } from "zod";
-import { loadOrBuildRadarAppData } from "../lib/buildRadarSnapshot.js";
+import { loadOrBuildRadarAppData } from "../lib/buildRadarSnapshotMutable.js";
 import { logApi } from "../lib/logger.js";
 
 const BodySchema = z.object({

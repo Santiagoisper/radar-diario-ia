@@ -26,8 +26,15 @@ vi.mock("../../src/server/arxiv/ingestArxiv", () => ({
   }),
 }));
 
-import { loadRadarSnapshotReadOnly } from "./buildRadarSnapshot";
+vi.mock("../../src/server/llm/enrichPapers", () => ({
+  enrichPapers: vi.fn(() => {
+    throw new Error("enrichPapers must not be called from read-only path");
+  }),
+}));
+
+import { loadRadarSnapshotReadOnly, loadRadarSnapshotReadOnlyWithMeta } from "./buildRadarSnapshot";
 import { ingestArxivForSources } from "../../src/server/arxiv/ingestArxiv";
+import { enrichPapers } from "../../src/server/llm/enrichPapers";
 import { runDailyRadarWorkflow } from "../../src/domain/services/radar/runDailyRadarWorkflow";
 import { runDailyRadarWorkflowAsync } from "../../src/domain/services/radar/runDailyRadarWorkflowAsync";
 
@@ -158,5 +165,95 @@ describe("loadRadarSnapshotReadOnly", () => {
     const result = await loadRadarSnapshotReadOnly("2026-05-05", "mock");
     expect(result).toBeNull();
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe("loadRadarSnapshotReadOnlyWithMeta", () => {
+  beforeEach(() => {
+    mockGetDb.mockReset();
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.reject(new Error("fetch must not be called")),
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("never calls enrichPapers when fetching exact match", async () => {
+    const payload = minimalRadarPayload("2026-06-03");
+    const row = { runDate: "2026-06-03", mode: "live", payload, createdAt: new Date("2026-06-03T06:00:00Z") };
+    const db = createSelectMock({ exactResult: [row], fallbackResult: [] });
+    mockGetDb.mockReturnValue(db);
+
+    await loadRadarSnapshotReadOnlyWithMeta("2026-06-03", "live");
+    expect(enrichPapers).not.toHaveBeenCalled();
+  });
+
+  it("returns fallback: false and stale: false for an exact date match", async () => {
+    const payload = minimalRadarPayload("2026-06-03");
+    const row = { runDate: "2026-06-03", mode: "live", payload, createdAt: new Date("2026-06-03T06:00:00Z") };
+    const db = createSelectMock({ exactResult: [row], fallbackResult: [] });
+    mockGetDb.mockReturnValue(db);
+
+    const { data, meta } = await loadRadarSnapshotReadOnlyWithMeta("2026-06-03", "live");
+    expect(data).toEqual(payload);
+    expect(meta.fallback).toBe(false);
+    expect(meta.stale).toBe(false);
+    expect(meta.servedDate).toBe("2026-06-03");
+    expect(meta.requestedDate).toBe("2026-06-03");
+    expect(meta.generatedAt).toBe("2026-06-03T06:00:00.000Z");
+  });
+
+  it("returns fallback: true and stale: true when serving an old snapshot", async () => {
+    const payload = minimalRadarPayload("2026-05-01");
+    // 3 days old — well beyond the 25-hour stale threshold
+    const oldDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const fallbackRow = { runDate: "2026-05-01", mode: "live", payload, createdAt: oldDate };
+    const db = createSelectMock({ exactResult: [], fallbackResult: [fallbackRow] });
+    mockGetDb.mockReturnValue(db);
+
+    const { data, meta } = await loadRadarSnapshotReadOnlyWithMeta("2026-06-03", "live");
+    expect(data).toEqual(payload);
+    expect(meta.fallback).toBe(true);
+    expect(meta.stale).toBe(true);
+    expect(meta.servedDate).toBe("2026-05-01");
+    expect(meta.requestedDate).toBe("2026-06-03");
+  });
+
+  it("returns fallback: true and stale: false when fallback is recent (< 25 hours)", async () => {
+    const payload = minimalRadarPayload("2026-06-02");
+    const recentDate = new Date(Date.now() - 2 * 60 * 60 * 1000); // 2 hours ago
+    const fallbackRow = { runDate: "2026-06-02", mode: "live", payload, createdAt: recentDate };
+    const db = createSelectMock({ exactResult: [], fallbackResult: [fallbackRow] });
+    mockGetDb.mockReturnValue(db);
+
+    const { data, meta } = await loadRadarSnapshotReadOnlyWithMeta("2026-06-03", "live");
+    expect(data).toEqual(payload);
+    expect(meta.fallback).toBe(true);
+    expect(meta.stale).toBe(false);
+  });
+
+  it("returns null data when no rows exist", async () => {
+    const db = createSelectMock({ exactResult: [], fallbackResult: [] });
+    mockGetDb.mockReturnValue(db);
+
+    const { data, meta } = await loadRadarSnapshotReadOnlyWithMeta("2026-06-03", "live");
+    expect(data).toBeNull();
+    expect(meta.fallback).toBe(false);
+    expect(meta.servedDate).toBe("");
+  });
+
+  it("returns stale: true when fallback row has null createdAt", async () => {
+    const payload = minimalRadarPayload("2026-05-01");
+    const fallbackRow = { runDate: "2026-05-01", mode: "live", payload, createdAt: null };
+    const db = createSelectMock({ exactResult: [], fallbackResult: [fallbackRow] });
+    mockGetDb.mockReturnValue(db);
+
+    const { data, meta } = await loadRadarSnapshotReadOnlyWithMeta("2026-06-03", "live");
+    expect(data).toEqual(payload);
+    expect(meta.fallback).toBe(true);
+    expect(meta.stale).toBe(true);
+    expect(meta.generatedAt).toBeNull();
   });
 });

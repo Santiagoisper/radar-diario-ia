@@ -1,15 +1,20 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { RadarAppData } from "../../src/data/radarSnapshot.js";
-import { toRadarAppData } from "../../src/data/radarSnapshot.js";
-import {
-  runDailyRadarWorkflow,
-  buildDefaultConfig,
-} from "../../src/domain/services/radar/runDailyRadarWorkflow.js";
-import { runDailyRadarWorkflowAsync } from "../../src/domain/services/radar/runDailyRadarWorkflowAsync.js";
 import { getDb } from "../../src/db/index.js";
 import { radarSnapshots } from "../../src/db/schema.js";
-import { ingestArxivForSources } from "../../src/server/arxiv/ingestArxiv.js";
-import { enrichPapers } from "../../src/server/llm/enrichPapers.js";
+
+export interface SnapshotMeta {
+  requestedDate: string;
+  servedDate: string;
+  fallback: boolean;
+  stale: boolean;
+  source: string;
+  generatedAt: string | null;
+}
+
+export function makeEmptyMeta(requestedDate: string, source: string): SnapshotMeta {
+  return { requestedDate, servedDate: "", fallback: false, stale: false, source, generatedAt: null };
+}
 
 /**
  * Solo lectura: SELECT en radar_snapshots. Sin workflow, sin red, sin INSERT/UPDATE.
@@ -48,51 +53,62 @@ export async function loadRadarSnapshotReadOnly(
   return null;
 }
 
-export async function loadOrBuildRadarAppData(
+const STALE_THRESHOLD_MS = 25 * 60 * 60 * 1000; // 25 hours
+
+/**
+ * Solo lectura con metadatos de frescura. Nunca llama a OpenAI ni corre pipeline.
+ * Retorna { data, meta } donde meta indica si el snapshot es exacto, fallback, o stale.
+ */
+export async function loadRadarSnapshotReadOnlyWithMeta(
   date: string,
   mode: "mock" | "live",
-  opts: { persist: boolean; useCache: boolean },
-): Promise<RadarAppData> {
+): Promise<{ data: RadarAppData | null; meta: SnapshotMeta }> {
   const db = getDb();
+  if (!db) return { data: null, meta: makeEmptyMeta(date, mode) };
 
-  if (db && opts.useCache) {
-    const rows = await db
-      .select()
-      .from(radarSnapshots)
-      .where(and(eq(radarSnapshots.runDate, date), eq(radarSnapshots.mode, mode)))
-      .limit(1);
-    const row = rows[0];
-    if (row?.payload) {
-      return row.payload as RadarAppData;
-    }
+  const exactRows = await db
+    .select()
+    .from(radarSnapshots)
+    .where(and(eq(radarSnapshots.runDate, date), eq(radarSnapshots.mode, mode)))
+    .limit(1);
+
+  const exact = exactRows[0];
+  if (exact?.payload) {
+    return {
+      data: exact.payload as RadarAppData,
+      meta: {
+        requestedDate: date,
+        servedDate: exact.runDate,
+        fallback: false,
+        stale: false,
+        source: mode,
+        generatedAt: exact.createdAt ? exact.createdAt.toISOString() : null,
+      },
+    };
   }
 
-  let data: RadarAppData;
-  if (mode === "mock") {
-    const workflow = runDailyRadarWorkflow(date);
-    data = toRadarAppData(workflow, date);
-  } else {
-    const config = buildDefaultConfig();
-    const workflow = await runDailyRadarWorkflowAsync(date, config, ingestArxivForSources, enrichPapers);
-    data = toRadarAppData(workflow, date);
+  const fallbackRows = await db
+    .select()
+    .from(radarSnapshots)
+    .where(eq(radarSnapshots.mode, mode))
+    .orderBy(desc(radarSnapshots.createdAt), desc(radarSnapshots.runDate))
+    .limit(1);
+
+  const fallback = fallbackRows[0];
+  if (fallback?.payload) {
+    const ageMs = fallback.createdAt ? Date.now() - fallback.createdAt.getTime() : Infinity;
+    return {
+      data: fallback.payload as RadarAppData,
+      meta: {
+        requestedDate: date,
+        servedDate: fallback.runDate,
+        fallback: true,
+        stale: ageMs > STALE_THRESHOLD_MS,
+        source: mode,
+        generatedAt: fallback.createdAt ? fallback.createdAt.toISOString() : null,
+      },
+    };
   }
 
-  if (db && opts.persist) {
-    await db
-      .insert(radarSnapshots)
-      .values({
-        runDate: date,
-        mode,
-        payload: data as unknown as Record<string, unknown>,
-      })
-      .onConflictDoUpdate({
-        target: [radarSnapshots.runDate, radarSnapshots.mode],
-        set: {
-          payload: data as unknown as Record<string, unknown>,
-          createdAt: new Date(),
-        },
-      });
-  }
-
-  return data;
+  return { data: null, meta: makeEmptyMeta(date, mode) };
 }
