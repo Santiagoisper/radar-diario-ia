@@ -15,6 +15,7 @@
 
 import { XMLParser } from "fast-xml-parser";
 import { retryDelayMs } from "./lib/retryDelay.mjs";
+import { deduplicateByExternalId, fetchAllCategories } from "./lib/arxivUtils.mjs";
 
 const ARXIV_API = "https://export.arxiv.org/api/query";
 const VERCEL_URL = process.env.VERCEL_URL?.replace(/\/$/, "") ?? "https://radar-diario-ia.vercel.app";
@@ -26,6 +27,8 @@ const CATEGORIES = (process.env.ARXIV_CATEGORIES ?? "cs.AI,cs.LG,cs.CL")
 const MAX_RESULTS = Number(process.env.ARXIV_MAX_RESULTS ?? 25);
 const RUN_DATE = process.env.RADAR_DATE?.trim() || new Date().toISOString().slice(0, 10);
 const ARXIV_ATTEMPTS = Number(process.env.ARXIV_ATTEMPTS ?? 5);
+const INTER_CATEGORY_DELAY_MS = Number(process.env.INTER_CATEGORY_DELAY_MS ?? 5_000);
+const PER_CAT_MAX = Math.max(8, Math.min(25, Math.floor(MAX_RESULTS / Math.max(1, CATEGORIES.length))));
 const USER_AGENT = "radar-diario-ia/0.1 (https://github.com/Santiagoisper/radar-diario-ia)";
 
 if (!CRON_SECRET) {
@@ -196,13 +199,23 @@ async function postToVercel(payloads, date) {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 console.log(`\n🗓  Radar diario — ${RUN_DATE}`);
-console.log(`📂 Categorías: ${CATEGORIES.join(", ")}`);
+console.log(
+  `📂 Categorías: ${CATEGORIES.join(", ")} — ${PER_CAT_MAX} papers/cat, ${INTER_CATEGORY_DELAY_MS / 1000}s inter-category delay`,
+);
 
-const xml = await fetchArxiv(CATEGORIES, MAX_RESULTS);
-const payloads = parseArxivXml(xml, CATEGORIES);
+const { payloads: merged, failedCategories } = await fetchAllCategories(CATEGORIES, PER_CAT_MAX, {
+  fetchForCategory: fetchArxiv,
+  parseFeed: parseArxivXml,
+  delayMs: () => sleep(INTER_CATEGORY_DELAY_MS),
+});
+const payloads = deduplicateByExternalId(merged);
+
+const failNote = failedCategories.length > 0 ? ` Failed: ${failedCategories.join(", ")}` : "";
+console.log(`📊 Merged: ${merged.length} papers → ${payloads.length} unique after dedup.${failNote}`);
 
 if (payloads.length === 0) {
-  console.warn("⚠️  Sin papers — enviando igualmente para que el pipeline use seeds");
+  console.error("❌ All categories failed — no real payloads fetched. Not calling postToVercel.");
+  process.exit(1);
 }
 
 await postToVercel(payloads, RUN_DATE);

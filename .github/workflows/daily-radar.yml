@@ -54,6 +54,7 @@ jobs:
           ARXIV_CATEGORIES: ${{ github.event.inputs.categories || 'cs.AI,cs.LG,cs.CL' }}
           ARXIV_MAX_RESULTS: ${{ github.event.inputs.max_results || '25' }}
           RADAR_DATE: ${{ github.event.inputs.date || '' }}
+          ARXIV_ATTEMPTS: "3"
         run: node scripts/ingest-and-push.mjs
 
       - name: Verificar snapshot persistido
