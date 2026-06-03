@@ -2,7 +2,7 @@
  * POST /api/radar/ingest
  *
  * Recibe papers ya ingresados (IngestedPaperPayload[]) desde GitHub Actions
- * y corre el pipeline completo (scoring, briefing, LLM, persist) en Vercel.
+ * y corre el pipeline completo (scoring, briefing, persist) en Vercel.
  *
  * Separación de responsabilidades:
  * - GitHub Actions: fetch a arXiv (IP no bloqueada) → envía payloads aquí
@@ -19,8 +19,7 @@ import {
   buildDefaultConfig,
   runDailyRadarWorkflow,
 } from "../../src/domain/services/radar/runDailyRadarWorkflow.js";
-import { runDailyRadarWorkflowAsync } from "../../src/domain/services/radar/runDailyRadarWorkflowAsync.js";
-import { enrichPapers } from "../../src/server/llm/enrichPapers.js";
+import { executeRadarPipelineFromPayloads } from "../../src/domain/services/radar/executeRadarPipeline.js";
 import { toRadarAppData } from "../../src/data/radarSnapshot.js";
 import type { RadarAppData } from "../../src/data/radarSnapshot.js";
 import { logApi } from "../lib/logger.js";
@@ -56,7 +55,9 @@ function authorizeCron(req: VercelRequest): boolean {
 
 async function persistSnapshot(date: string, mode: "mock" | "live", data: RadarAppData): Promise<void> {
   const db = getDb();
-  if (!db) return;
+  if (!db) {
+    throw new Error("DATABASE_URL no está configurado");
+  }
   await db
     .insert(radarSnapshots)
     .values({
@@ -105,6 +106,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const { date: rawDate, source: mode, payloads } = parsed.data;
   const date = rawDate ?? new Date().toISOString().slice(0, 10);
 
+  if (!process.env.DATABASE_URL?.trim()) {
+    res.status(500).json({
+      error: "database_not_configured",
+      message: "DATABASE_URL no está configurado",
+    });
+    return;
+  }
+
   logApi("info", "ingest_start", { date, mode, payloads_count: payloads.length });
 
   // Responder 202 inmediatamente — el pipeline corre en background con waitUntil
@@ -129,9 +138,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         } else {
           // Modo live: pipeline con payloads pre-ingresados (sin llamar a arXiv)
           const config = buildDefaultConfig();
-          // Inyectamos una función de ingesta que devuelve los payloads recibidos directamente
-          const ingestFromPayloads = async () => payloads;
-          const workflow = await runDailyRadarWorkflowAsync(date, config, ingestFromPayloads, enrichPapers);
+          const workflow = executeRadarPipelineFromPayloads(payloads, date, config);
           data = toRadarAppData(workflow, date);
         }
 
