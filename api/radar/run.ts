@@ -95,6 +95,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           message: e instanceof Error ? e.message : String(e),
         });
       }
-    })()
+    })(),
   );
 }

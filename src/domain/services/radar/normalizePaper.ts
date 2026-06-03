@@ -6,7 +6,10 @@ function isNewToday(dateIso: string, todayDate: string): boolean {
 }
 
 /** Normaliza payload bruto a entidad Paper. */
-export function normalizePaper(payload: IngestedPaperPayload, todayDate = new Date().toISOString().slice(0, 10)): Paper {
+export function normalizePaper(
+  payload: IngestedPaperPayload,
+  todayDate = new Date().toISOString().slice(0, 10),
+): Paper {
   const stableId = payload.external_id.replace(/[^a-zA-Z0-9]/g, "-").toLowerCase();
 
   return {

@@ -15,7 +15,10 @@ import { waitUntil } from "@vercel/functions";
 import { z } from "zod";
 import { getDb } from "../../src/db/index.js";
 import { radarSnapshots } from "../../src/db/schema.js";
-import { buildDefaultConfig, runDailyRadarWorkflow } from "../../src/domain/services/radar/runDailyRadarWorkflow.js";
+import {
+  buildDefaultConfig,
+  runDailyRadarWorkflow,
+} from "../../src/domain/services/radar/runDailyRadarWorkflow.js";
 import { runDailyRadarWorkflowAsync } from "../../src/domain/services/radar/runDailyRadarWorkflowAsync.js";
 import { enrichPapers } from "../../src/server/llm/enrichPapers.js";
 import { toRadarAppData } from "../../src/data/radarSnapshot.js";
@@ -148,6 +151,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           message: e instanceof Error ? e.message : String(e),
         });
       }
-    })()
+    })(),
   );
 }

@@ -54,9 +54,7 @@ describe("runDailyRadarWorkflowAsync", () => {
     const ingest = vi.fn().mockRejectedValue(new Error("arxiv HTTP 503"));
     const config = buildDefaultConfig();
 
-    await expect(runDailyRadarWorkflowAsync("2024-01-15", config, ingest)).rejects.toThrow(
-      "arxiv HTTP 503",
-    );
+    await expect(runDailyRadarWorkflowAsync("2024-01-15", config, ingest)).rejects.toThrow("arxiv HTTP 503");
   });
 
   it("incluye enrichments cuando se inyecta función de enriquecimiento", async () => {
