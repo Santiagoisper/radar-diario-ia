@@ -25,9 +25,21 @@ npm run dev      # desarrollo con HMR
 npm run build    # TypeScript (project references) + bundle de producción
 npm run lint
 npm test         # tests unitarios (Vitest)
-npm run test:e2e # smoke E2E con Playwright (levanta Vite en :5174)
+npm run test:e2e # smoke + accesibilidad (axe); Playwright levanta Vite en :5174
 npm run preview  # vista previa del build
 ```
+
+### Tests E2E (Playwright)
+
+Tras `npm ci`, instalá el navegador de Chromium **una vez** (sin esto, `npm run test:e2e` puede fallar al no encontrar el ejecutable):
+
+```bash
+npx playwright install chromium
+```
+
+En Linux, para dependencias del sistema (similar al CI): `npx playwright install --with-deps chromium`.
+
+Para depurar: `npm run test:e2e:ui` o `npx playwright test --debug`.
 
 ## Despliegue
 

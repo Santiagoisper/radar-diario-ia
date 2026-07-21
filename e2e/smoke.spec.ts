@@ -19,7 +19,7 @@ test.describe("Smoke E2E", () => {
     await page.goto("/");
 
     await page.getByRole("link", { name: "Papers" }).click();
-    await expect(page.getByRole("heading", { name: "Papers" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Papers", exact: true })).toBeVisible();
 
     await page.getByRole("link", { name: "Autores" }).click();
     await expect(page.getByRole("heading", { name: "Autores", exact: true })).toBeVisible();
