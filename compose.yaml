@@ -1,0 +1,12 @@
+services:
+  beta-tester:
+    build:
+      context: .
+    ports:
+      - "3105:3000"
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    restart: unless-stopped
